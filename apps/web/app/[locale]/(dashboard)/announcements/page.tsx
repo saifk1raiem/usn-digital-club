@@ -1,0 +1,23 @@
+'use client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCheck, Megaphone, Plus } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { EmptyState, LoadingState } from '@usn/ui';
+import { PageHeading } from '@/components/page-heading';
+import { api } from '@/lib/api';
+import type { WebLocale } from '@/i18n';
+
+type Announcement = { id: string; titleAr: string; titleFr?: string | null; messageAr: string; messageFr?: string | null; priority: string; audience: string; publishAt: string; requiresAcknowledgement: boolean; reads: Array<{ readAt: string; acknowledgedAt?: string | null }> };
+type Form = { titleAr: string; titleFr: string; messageAr: string; messageFr: string; audience: string; priority: string; requiresAcknowledgement: boolean };
+export default function AnnouncementsPage() {
+  const { locale } = useParams<{ locale: WebLocale }>(); const ar = locale === 'ar'; const cache = useQueryClient(); const [creating, setCreating] = useState(false);
+  const query = useQuery({ queryKey: ['announcements'], queryFn: () => api<{ data: Announcement[] }>('/announcements') }); const { register, handleSubmit, reset } = useForm<Form>({ defaultValues: { audience: 'CLUB', priority: 'NORMAL', requiresAcknowledgement: false } });
+  const create = useMutation({ mutationFn: (values: Form) => api('/announcements', { method: 'POST', body: JSON.stringify(values) }), onSuccess: async () => { await cache.invalidateQueries({ queryKey: ['announcements'] }); reset(); setCreating(false); } });
+  const acknowledge = useMutation({ mutationFn: (id: string) => api(`/announcements/${id}/acknowledge`, { method: 'POST' }), onSuccess: () => cache.invalidateQueries({ queryKey: ['announcements'] }) });
+  return <><PageHeading eyebrow="CLUB COMMUNICATION" title={ar ? 'الإعلانات' : 'Annonces'} description={ar ? 'تواصل داخلي موجه لكل النادي أو فئة محددة' : 'Communication interne ciblée pour le club'} action={<button className="usn-button action-button" onClick={() => setCreating((value) => !value)}><Plus size={17} />{ar ? 'إعلان جديد' : 'Nouvelle annonce'}</button>} />
+    {creating && <form className="operation-form announcement-form" onSubmit={handleSubmit((values) => create.mutate(values))}><input placeholder={ar ? 'العنوان بالعربية' : 'Titre en arabe'} {...register('titleAr', { required: true })} /><input placeholder="Titre en français" {...register('titleFr')} /><textarea placeholder={ar ? 'نص الإعلان بالعربية' : "Message en arabe"} {...register('messageAr', { required: true })} /><textarea placeholder="Message en français" {...register('messageFr')} /><select {...register('audience')}><option value="CLUB">CLUB</option><option value="STAFF">STAFF</option><option value="PLAYERS">PLAYERS</option><option value="PARENTS">PARENTS</option></select><select {...register('priority')}><option value="NORMAL">NORMAL</option><option value="IMPORTANT">IMPORTANT</option><option value="URGENT">URGENT</option></select><label className="check-field form-wide"><input type="checkbox" {...register('requiresAcknowledgement')} />{ar ? 'يتطلب تأكيد الاطلاع' : 'Accusé de lecture obligatoire'}</label><div className="form-actions form-wide"><button className="usn-button" disabled={create.isPending}>{ar ? 'نشر' : 'Publier'}</button>{create.isError && <span>{ar ? 'تعذر النشر' : 'Publication impossible'}</span>}</div></form>}
+    {query.isLoading ? <LoadingState label={ar ? 'جار التحميل…' : 'Chargement…'} /> : !query.data?.data.length ? <EmptyState title={ar ? 'لا توجد إعلانات' : 'Aucune annonce'} message={ar ? 'ستظهر الإعلانات هنا' : 'Les annonces apparaîtront ici'} /> : <div className="announcement-list">{query.data.data.map((item) => { const title = !ar && item.titleFr ? item.titleFr : item.titleAr; const message = !ar && item.messageFr ? item.messageFr : item.messageAr; const acknowledged = Boolean(item.reads[0]?.acknowledgedAt); return <article className={`announcement-card priority-${item.priority.toLowerCase()}`} key={item.id}><div className="announcement-mark"><Megaphone /></div><div><div className="announcement-top"><span>{item.audience} · {item.priority}</span><time>{new Date(item.publishAt).toLocaleDateString(ar ? 'ar-TN' : 'fr-TN')}</time></div><h2>{title}</h2><p>{message}</p>{item.requiresAcknowledgement && !acknowledged && <button className="ghost-button" onClick={() => acknowledge.mutate(item.id)}><CheckCheck size={16} />{ar ? 'تأكيد الاطلاع' : 'Accuser réception'}</button>}{acknowledged && <small className="success-text"><CheckCheck size={14} />{ar ? 'تم التأكيد' : 'Lecture confirmée'}</small>}</div></article>; })}</div>}
+  </>;
+}

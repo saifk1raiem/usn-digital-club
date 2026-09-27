@@ -8,7 +8,8 @@ const permissionKeys = [
   'training.view','training.create','training.manageAttendance','matches.view','matches.create',
   'matches.selectSquad','medical.viewAvailability','medical.viewDetails','medical.edit',
   'performance.view','performance.edit','contracts.view','contracts.manage','equipment.manage',
-  'categories.manage','seasons.manage','users.manage','news.publish',
+  'categories.manage','seasons.manage','users.manage','news.publish','announcements.view',
+  'announcements.publish','notifications.view',
 ];
 
 const rolePermissionSeeds: Record<string, string[]> = {
@@ -27,6 +28,11 @@ const rolePermissionSeeds: Record<string, string[]> = {
   EQUIPMENT_MANAGER: ['dashboard.view','equipment.manage'], KIT_MANAGER: ['dashboard.view','equipment.manage'],
   PLAYER: ['dashboard.view','training.view','matches.view'], PARENT: ['dashboard.view','training.view','matches.view'], VIEWER: ['dashboard.view'],
 };
+
+for (const [role, keys] of Object.entries(rolePermissionSeeds)) {
+  if (role !== 'SUPER_ADMIN') keys.push('announcements.view', 'notifications.view');
+  if (['PRESIDENT', 'MANAGEMENT', 'TECHNICAL_DIRECTOR', 'HEAD_COACH'].includes(role)) keys.push('announcements.publish');
+}
 
 const positionSeeds = [
   ['TECHNICAL_DIRECTOR', 'المدير الفني', 'Directeur technique'],
@@ -133,7 +139,25 @@ async function main() {
     await prisma.committeeMember.upsert({ where: { committeeId_personId_titleAr: { committeeId: committee.id, personId: people.get(fullNameAr)!, titleAr: 'عضو الهيئة المديرة' } }, update: { active: true }, create: { committeeId: committee.id, personId: people.get(fullNameAr)!, titleAr: 'عضو الهيئة المديرة', titleFr: 'Membre du comité directeur' } });
   }
 
-  await prisma.facility.upsert({ where: { id: 'nadhour-municipal-stadium' }, update: {}, create: { id: 'nadhour-municipal-stadium', nameAr: 'الملعب البلدي بالناظور', nameFr: 'Stade municipal de Nadhour', facilityType: 'STADIUM', available: true } });
+  const facility = await prisma.facility.upsert({ where: { id: 'nadhour-municipal-stadium' }, update: {}, create: { id: 'nadhour-municipal-stadium', nameAr: 'الملعب البلدي بالناظور', nameFr: 'Stade municipal de Nadhour', facilityType: 'STADIUM', available: true } });
+  const seniorsId = categories.get('SENIORS')!;
+  await prisma.trainingSession.upsert({
+    where: { id: 'seed-seniors-training-1' },
+    update: { startsAt: new Date('2026-09-29T17:00:00+01:00'), endsAt: new Date('2026-09-29T18:30:00+01:00') },
+    create: { id: 'seed-seniors-training-1', seasonId: season.id, categoryId: seniorsId, facilityId: facility.id, startsAt: new Date('2026-09-29T17:00:00+01:00'), endsAt: new Date('2026-09-29T18:30:00+01:00'), type: 'MATCH_PREPARATION', intensity: 7, objective: 'التنظيم التكتيكي والكرات الثابتة' },
+  });
+  await prisma.match.upsert({
+    where: { id: 'seed-seniors-match-1' },
+    update: { kickoffAt: new Date('2026-10-03T15:00:00+01:00') },
+    create: { id: 'seed-seniors-match-1', seasonId: season.id, categoryId: seniorsId, facilityId: facility.id, competition: 'البطولة', opponent: 'نادي المستقبل', venueSide: 'HOME', stadium: 'الملعب البلدي بالناظور', kickoffAt: new Date('2026-10-03T15:00:00+01:00'), meetingAt: new Date('2026-10-03T13:30:00+01:00'), type: 'LEAGUE' },
+  });
+  const announcement = await prisma.announcement.upsert({
+    where: { id: 'seed-club-announcement-1' },
+    update: {},
+    create: { id: 'seed-club-announcement-1', titleAr: 'مرحبا بكم في USN Digital Club', titleFr: 'Bienvenue sur USN Digital Club', messageAr: 'هذا الفضاء مخصص لتنظيم نشاط النادي وتسهيل التواصل.', messageFr: "Cet espace organise l'activité du club et facilite la communication.", audience: 'CLUB', priority: 'IMPORTANT', authorId: admin.id },
+  });
+  await prisma.announcementRecipient.upsert({ where: { announcementId_userId: { announcementId: announcement.id, userId: admin.id } }, update: {}, create: { announcementId: announcement.id, userId: admin.id } });
+  await prisma.notification.upsert({ where: { id: 'seed-admin-notification-1' }, update: {}, create: { id: 'seed-admin-notification-1', userId: admin.id, type: 'ANNOUNCEMENT', title: announcement.titleAr, body: announcement.messageAr, data: { entityId: announcement.id } } });
   console.log('Editable development seed completed.');
 }
 

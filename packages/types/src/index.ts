@@ -14,7 +14,8 @@ export const permissions = [
   'matches.view', 'matches.create', 'matches.selectSquad', 'medical.viewAvailability',
   'medical.viewDetails', 'medical.edit', 'performance.view', 'performance.edit',
   'contracts.view', 'contracts.manage', 'equipment.manage', 'categories.manage',
-  'seasons.manage', 'users.manage', 'news.publish',
+  'seasons.manage', 'users.manage', 'news.publish', 'announcements.view',
+  'announcements.publish', 'notifications.view',
 ] as const;
 export type PermissionKey = (typeof permissions)[number];
 

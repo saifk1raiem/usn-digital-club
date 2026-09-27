@@ -48,13 +48,25 @@ export class AuthService {
   }
 
   private userIncludes(): Prisma.UserInclude {
-    return { person: { include: { staffProfile: { include: { assignments: { where: { OR: [{ endDate: null }, { endDate: { gt: new Date() } }] } } } } } }, roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } } };
+    const activeSeason = { where: { season: { isCurrent: true }, leftAt: null } };
+    return {
+      person: { include: {
+        staffProfile: { include: { assignments: { where: { OR: [{ endDate: null }, { endDate: { gt: new Date() } }] } } } },
+        player: { include: { seasons: activeSeason } },
+        guardian: { include: { players: { include: { player: { include: { seasons: activeSeason } } } } } },
+      } },
+      roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
+    };
   }
 
   private toSession(user: Awaited<ReturnType<PrismaService['user']['findUniqueOrThrow']>> & any): SessionUser {
     const roles = user.roles.map((item: any) => item.role.key) as SystemRole[];
     const permissions = [...new Set(user.roles.flatMap((item: any) => item.role.permissions.map((entry: any) => entry.permission.key)))] as PermissionKey[];
-    const categoryIds = [...new Set(user.person.staffProfile?.assignments.map((assignment: any) => assignment.categoryId).filter(Boolean) ?? [])] as string[];
+    const categoryIds = [...new Set([
+      ...(user.person.staffProfile?.assignments.map((assignment: any) => assignment.categoryId) ?? []),
+      ...(user.person.player?.seasons.map((season: any) => season.categoryId) ?? []),
+      ...(user.person.guardian?.players.flatMap((link: any) => link.player.seasons.map((season: any) => season.categoryId)) ?? []),
+    ].filter(Boolean))] as string[];
     return { id: user.id, email: user.email, displayName: user.person.fullNameAr, roles, permissions, categoryIds, locale: user.locale === 'fr' ? 'fr' : 'ar' };
   }
 

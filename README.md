@@ -8,7 +8,7 @@ future public-content API.
 
 - `apps/api` — NestJS REST API, Prisma, PostgreSQL and OpenAPI
 - `apps/web` — Next.js private management dashboard
-- `apps/mobile` — Expo Router mobile application shell
+- `apps/mobile` — Expo SDK 57 / Expo Router mobile application
 - `packages/types` — shared domain, DTO and authorization types
 - `packages/config` — club identity, navigation and role/permission policy
 - `packages/ui` — shared web design primitives
@@ -23,5 +23,14 @@ See [`docs/architecture.md`](docs/architecture.md) for the domain and authorizat
 3. Start PostgreSQL with `docker compose up -d postgres`.
 4. Run `npm run db:generate`, `npm run db:migrate`, then `npm run db:seed`.
 5. Start the API with `npm run dev:api` and dashboard with `npm run dev:web`.
+
+## Test on a phone
+
+1. Put the computer and phone on the same Wi-Fi network.
+2. Set `EXPO_PUBLIC_API_URL=http://<computer-lan-ip>:4000/api/v1` in `apps/mobile/.env`.
+3. Start the API with `npm run dev:api`.
+4. Start Expo with `npm run dev:mobile`, then scan the QR code in Expo Go.
+
+Phase 2 includes database-backed training and attendance, matches and squads, internal announcements, and in-app notifications on both web and mobile.
 
 Seed login: `admin@usn.tn` / `ChangeMe123!` (development only; change immediately).
