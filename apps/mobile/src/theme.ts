@@ -1,0 +1,1 @@
+export const colors = { navy950: '#06101d', navy900: '#0a1728', navy800: '#13243a', gold: '#f3bd22', white: '#f8fafc', muted: '#93a3b7', line: 'rgba(255,255,255,0.09)', red: '#f26a6a', green: '#4fd09b' } as const;

@@ -1,0 +1,2 @@
+import { Redirect } from 'expo-router'; import { ActivityIndicator, View } from 'react-native'; import { useAuth } from '@/src/store'; import { colors } from '@/src/theme';
+export default function Index() { const { token, hydrated } = useAuth(); if (!hydrated) return <View style={{ flex: 1, backgroundColor: colors.navy950, justifyContent: 'center' }}><ActivityIndicator color={colors.gold} /></View>; return <Redirect href={token ? '/(tabs)' : '/sign-in'} />; }

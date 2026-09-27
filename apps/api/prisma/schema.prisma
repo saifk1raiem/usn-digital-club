@@ -1,0 +1,833 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+enum PlayerStatus {
+  ACTIVE
+  INJURED
+  SUSPENDED
+  UNAVAILABLE
+  TRIAL
+  LEFT_CLUB
+}
+enum RegistrationStatus {
+  PENDING
+  REGISTERED
+  NOT_REGISTERED
+  EXPIRED
+}
+enum PreferredFoot {
+  RIGHT
+  LEFT
+  BOTH
+}
+enum TrainingType {
+  TACTICAL
+  TECHNICAL
+  PHYSICAL
+  RECOVERY
+  GYM
+  GOALKEEPER
+  MATCH_PREPARATION
+  OTHER
+}
+enum AvailabilityResponse {
+  AVAILABLE
+  UNAVAILABLE
+  INJURED
+  LATE
+  NO_RESPONSE
+}
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  INJURED
+}
+enum MatchType {
+  LEAGUE
+  CUP
+  FRIENDLY
+  TOURNAMENT
+}
+enum VenueSide {
+  HOME
+  AWAY
+  NEUTRAL
+}
+enum MatchEventType {
+  GOAL
+  ASSIST
+  YELLOW_CARD
+  RED_CARD
+  SUBSTITUTION
+  INJURY
+}
+enum MedicalStatus {
+  AVAILABLE
+  LIMITED
+  INDIVIDUAL_TRAINING
+  UNAVAILABLE
+  RETURN_TO_TRAINING
+  MATCH_READY
+}
+enum TrialStatus {
+  REGISTERED
+  ATTENDED
+  FIRST_EVALUATION
+  SECOND_TRIAL
+  ACCEPTED
+  REJECTED
+}
+enum EquipmentTransactionType {
+  ASSIGNED
+  RETURNED
+  DAMAGED
+  LOST
+  REPAIRED
+  PURCHASED
+}
+enum KitCondition {
+  NEW
+  GOOD
+  WORN
+  DAMAGED
+  LOST
+}
+enum DocumentVisibility {
+  PRIVATE
+  MANAGEMENT
+  MEDICAL
+  STAFF
+  CATEGORY
+  GUARDIANS
+  PUBLIC
+}
+enum ContractType {
+  EMPLOYMENT
+  PLAYER
+  VOLUNTEER
+  SERVICE
+  OTHER
+}
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+enum AnnouncementAudience {
+  CLUB
+  CATEGORY
+  STAFF
+  PLAYERS
+  PARENTS
+  USERS
+}
+enum ObjectiveStatus {
+  PLANNED
+  IN_PROGRESS
+  AT_RISK
+  ACHIEVED
+  CANCELLED
+}
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+enum ContentVisibility {
+  INTERNAL
+  PUBLIC
+  BOTH
+}
+
+model Club {
+  id String @id @default(cuid())
+  nameAr String
+  nameFr String
+  shortName String
+  founded Int?
+  locationAr String?
+  locationFr String?
+  seasons Season[]
+  categories Category[]
+  committees Committee[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  status UserStatus @default(INVITED)
+  locale String @default("ar")
+  personId String @unique
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  roles UserRole[]
+  refreshTokens RefreshToken[]
+  announcements Announcement[] @relation("AnnouncementAuthor")
+  notifications Notification[]
+  objectives SeasonObjective[] @relation("ObjectiveOwner")
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id String @id @default(cuid())
+  key String @unique
+  nameAr String
+  nameFr String
+  users UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id String @id @default(cuid())
+  key String @unique
+  description String?
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId String
+  permissionId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Person {
+  id String @id @default(cuid())
+  firstName String
+  lastName String
+  fullNameAr String
+  dateOfBirth DateTime?
+  gender Gender?
+  nationality String? @default("Tunisian")
+  phone String?
+  emergencyContact String?
+  photoUrl String?
+  user User?
+  staffProfile StaffProfile?
+  player Player?
+  guardian Guardian?
+  contracts Contract[]
+  committeeMemberships CommitteeMember[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Season {
+  id String @id @default(cuid())
+  clubId String
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name String
+  startsAt DateTime
+  endsAt DateTime
+  isCurrent Boolean @default(false)
+  categories Category[]
+  playerSeasons PlayerSeason[]
+  staffAssignments StaffAssignment[]
+  trainings TrainingSession[]
+  matches Match[]
+  objectives SeasonObjective[]
+  kitItems KitItem[]
+  committees Committee[]
+  @@unique([clubId, name])
+  @@index([clubId, isCurrent])
+}
+
+model Category {
+  id String @id @default(cuid())
+  clubId String
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  code String
+  nameAr String
+  nameFr String
+  descriptionAr String?
+  descriptionFr String?
+  minBirthYear Int?
+  maxBirthYear Int?
+  active Boolean @default(true)
+  archivedAt DateTime?
+  playerSeasons PlayerSeason[]
+  staffAssignments StaffAssignment[]
+  trainings TrainingSession[]
+  matches Match[]
+  objectives SeasonObjective[]
+  trialEvents TrialEvent[]
+  announcements Announcement[]
+  @@unique([seasonId, code])
+  @@index([seasonId, active])
+}
+
+model StaffProfile {
+  id String @id @default(cuid())
+  personId String @unique
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  bioAr String?
+  bioFr String?
+  assignments StaffAssignment[]
+  medicalCases MedicalCase[] @relation("MedicalResponsible")
+  medicalUpdates MedicalUpdate[]
+  physicalResults PhysicalTestResult[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StaffPosition {
+  id String @id @default(cuid())
+  code String @unique
+  nameAr String
+  nameFr String
+  assignments StaffAssignment[]
+}
+
+model StaffAssignment {
+  id String @id @default(cuid())
+  staffId String
+  staff StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  positionId String
+  position StaffPosition @relation(fields: [positionId], references: [id])
+  startDate DateTime
+  endDate DateTime?
+  isPrimary Boolean @default(false)
+  @@index([staffId, seasonId])
+  @@index([categoryId, seasonId])
+}
+
+model Player {
+  id String @id @default(cuid())
+  personId String @unique
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  federationLicenseNumber String? @unique
+  position String?
+  preferredFoot PreferredFoot?
+  heightCm Float?
+  weightKg Float?
+  status PlayerStatus @default(ACTIVE)
+  seasons PlayerSeason[]
+  guardians PlayerGuardian[]
+  trainingAttendance TrainingAttendance[]
+  matchSquads MatchSquad[]
+  matchStats MatchPlayer[]
+  matchEvents MatchEvent[]
+  physicalTests PhysicalTestResult[]
+  medicalCases MedicalCase[]
+  kitAssignments KitAssignment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PlayerSeason {
+  id String @id @default(cuid())
+  playerId String
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  jerseyNumber Int?
+  registrationStatus RegistrationStatus @default(PENDING)
+  joinedAt DateTime @default(now())
+  leftAt DateTime?
+  @@unique([playerId, seasonId])
+  @@index([categoryId, seasonId])
+}
+
+model Guardian {
+  id String @id @default(cuid())
+  personId String @unique
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  relationship String?
+  players PlayerGuardian[]
+}
+
+model PlayerGuardian {
+  playerId String
+  guardianId String
+  isPrimary Boolean @default(false)
+  canCollect Boolean @default(false)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  @@id([playerId, guardianId])
+}
+
+model Facility {
+  id String @id @default(cuid())
+  nameAr String
+  nameFr String
+  address String?
+  facilityType String
+  available Boolean @default(true)
+  maintenanceStatus String?
+  notes String?
+  trainings TrainingSession[]
+  matches Match[]
+  trialEvents TrialEvent[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TrainingSession {
+  id String @id @default(cuid())
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id])
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  facilityId String?
+  facility Facility? @relation(fields: [facilityId], references: [id])
+  startsAt DateTime
+  endsAt DateTime
+  type TrainingType
+  intensity Int?
+  objective String?
+  notes String?
+  attendance TrainingAttendance[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([categoryId, startsAt])
+}
+
+model TrainingAttendance {
+  trainingId String
+  playerId String
+  response AvailabilityResponse @default(NO_RESPONSE)
+  status AttendanceStatus?
+  responseNote String?
+  coachNote String?
+  respondedAt DateTime?
+  markedAt DateTime?
+  training TrainingSession @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@id([trainingId, playerId])
+}
+
+model Match {
+  id String @id @default(cuid())
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id])
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  facilityId String?
+  facility Facility? @relation(fields: [facilityId], references: [id])
+  competition String
+  opponent String
+  venueSide VenueSide
+  stadium String?
+  kickoffAt DateTime
+  meetingAt DateTime?
+  type MatchType
+  formation String?
+  tacticalNotes String?
+  homeScore Int?
+  awayScore Int?
+  coachNotes String?
+  squad MatchSquad[]
+  playerStats MatchPlayer[]
+  events MatchEvent[]
+  @@index([categoryId, kickoffAt])
+}
+
+model MatchSquad {
+  matchId String
+  playerId String
+  selected Boolean @default(true)
+  isStarter Boolean @default(false)
+  positionCode String?
+  shirtNumber Int?
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@id([matchId, playerId])
+}
+
+model MatchPlayer {
+  matchId String
+  playerId String
+  minutesPlayed Int @default(0)
+  rating Float?
+  saves Int?
+  goalsConceded Int?
+  cleanSheet Boolean?
+  penaltiesSaved Int?
+  crossesClaimed Int?
+  distributionScore Float?
+  coachEvaluation String?
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  @@id([matchId, playerId])
+}
+
+model MatchEvent {
+  id String @id @default(cuid())
+  matchId String
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String?
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  type MatchEventType
+  minute Int
+  relatedPlayerId String?
+  notes String?
+  @@index([matchId, minute])
+}
+
+model PhysicalTestType {
+  id String @id @default(cuid())
+  code String @unique
+  nameAr String
+  nameFr String
+  defaultUnit String
+  lowerIsBetter Boolean @default(false)
+  active Boolean @default(true)
+  results PhysicalTestResult[]
+}
+
+model PhysicalTestResult {
+  id String @id @default(cuid())
+  playerId String
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  testTypeId String
+  testType PhysicalTestType @relation(fields: [testTypeId], references: [id])
+  value Float
+  unit String
+  measuredAt DateTime
+  responsibleStaffId String?
+  responsibleStaff StaffProfile? @relation(fields: [responsibleStaffId], references: [id])
+  notes String?
+  @@index([playerId, testTypeId, measuredAt])
+}
+
+model MedicalCase {
+  id String @id @default(cuid())
+  playerId String
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  issue String
+  bodyArea String?
+  occurredAt DateTime
+  severity String?
+  responsibleStaffId String?
+  responsibleStaff StaffProfile? @relation("MedicalResponsible", fields: [responsibleStaffId], references: [id])
+  status MedicalStatus
+  expectedReturnAt DateTime?
+  confidentialNotes String?
+  rehabilitationPhase String?
+  updates MedicalUpdate[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([playerId, status])
+}
+
+model MedicalUpdate {
+  id String @id @default(cuid())
+  caseId String
+  medicalCase MedicalCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  status MedicalStatus
+  publicNote String?
+  confidentialNote String?
+  createdById String
+  createdBy StaffProfile @relation(fields: [createdById], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model TrialEvent {
+  id String @id @default(cuid())
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  birthYear Int
+  startsAt DateTime
+  facilityId String?
+  facility Facility? @relation(fields: [facilityId], references: [id])
+  venue String?
+  registrationFee Decimal? @db.Decimal(10, 3)
+  maxParticipants Int?
+  description String?
+  candidates TrialCandidate[]
+}
+
+model TrialCandidate {
+  id String @id @default(cuid())
+  trialEventId String
+  trialEvent TrialEvent @relation(fields: [trialEventId], references: [id], onDelete: Cascade)
+  fullName String
+  dateOfBirth DateTime
+  position String?
+  phone String?
+  guardianName String?
+  previousClub String?
+  photoUrl String?
+  notes String?
+  status TrialStatus @default(REGISTERED)
+  convertedPlayerId String? @unique
+  evaluations TrialEvaluation[]
+}
+
+model TrialEvaluation {
+  id String @id @default(cuid())
+  candidateId String
+  candidate TrialCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  technical Float?
+  physical Float?
+  tactical Float?
+  attitude Float?
+  notes String?
+  evaluatorId String?
+  createdAt DateTime @default(now())
+}
+
+model Equipment {
+  id String @id @default(cuid())
+  nameAr String
+  nameFr String
+  category String
+  quantity Int
+  available Int
+  damaged Int @default(0)
+  missing Int @default(0)
+  storageLocation String?
+  purchaseDate DateTime?
+  notes String?
+  transactions EquipmentTransaction[]
+  updatedAt DateTime @updatedAt
+}
+
+model EquipmentTransaction {
+  id String @id @default(cuid())
+  equipmentId String
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  type EquipmentTransactionType
+  quantity Int
+  assignedToId String?
+  notes String?
+  occurredAt DateTime @default(now())
+}
+
+model KitItem {
+  id String @id @default(cuid())
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id])
+  type String
+  size String?
+  number Int?
+  condition KitCondition @default(GOOD)
+  assignments KitAssignment[]
+}
+
+model KitAssignment {
+  id String @id @default(cuid())
+  kitItemId String
+  kitItem KitItem @relation(fields: [kitItemId], references: [id], onDelete: Cascade)
+  playerId String?
+  player Player? @relation(fields: [playerId], references: [id])
+  assignedAt DateTime @default(now())
+  returnedAt DateTime?
+}
+
+model Document {
+  id String @id @default(cuid())
+  name String
+  fileKey String
+  mimeType String
+  ownerType String
+  ownerId String
+  category String
+  issueDate DateTime?
+  expiryDate DateTime?
+  visibility DocumentVisibility @default(PRIVATE)
+  notes String?
+  createdAt DateTime @default(now())
+  @@index([ownerType, ownerId])
+  @@index([expiryDate])
+}
+
+model Contract {
+  id String @id @default(cuid())
+  personId String
+  person Person @relation(fields: [personId], references: [id])
+  type ContractType
+  startsAt DateTime
+  endsAt DateTime
+  salary Decimal? @db.Decimal(12, 3)
+  bonuses Decimal? @db.Decimal(12, 3)
+  renewalOption String?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([endsAt])
+}
+
+model Announcement {
+  id String @id @default(cuid())
+  titleAr String
+  titleFr String?
+  messageAr String
+  messageFr String?
+  audience AnnouncementAudience
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id])
+  priority AnnouncementPriority @default(NORMAL)
+  publishAt DateTime @default(now())
+  expiresAt DateTime?
+  requiresAcknowledgement Boolean @default(false)
+  authorId String
+  author User @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  reads AnnouncementRead[]
+  createdAt DateTime @default(now())
+}
+
+model AnnouncementRead {
+  announcementId String
+  userId String
+  readAt DateTime @default(now())
+  acknowledgedAt DateTime?
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  @@id([announcementId, userId])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  title String
+  body String
+  data Json?
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, readAt, createdAt])
+}
+
+model SeasonObjective {
+  id String @id @default(cuid())
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id])
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  title String
+  description String?
+  ownerId String
+  owner User @relation("ObjectiveOwner", fields: [ownerId], references: [id])
+  status ObjectiveStatus @default(PLANNED)
+  progress Int @default(0)
+  progressNotes String?
+  updatedAt DateTime @updatedAt
+}
+
+model Committee {
+  id String @id @default(cuid())
+  clubId String
+  club Club @relation(fields: [clubId], references: [id])
+  seasonId String
+  season Season @relation(fields: [seasonId], references: [id])
+  nameAr String
+  nameFr String
+  members CommitteeMember[]
+  meetings Meeting[]
+}
+
+model CommitteeMember {
+  id String @id @default(cuid())
+  committeeId String
+  committee Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  personId String
+  person Person @relation(fields: [personId], references: [id])
+  titleAr String
+  titleFr String?
+  responsibility String?
+  active Boolean @default(true)
+  @@unique([committeeId, personId, titleAr])
+}
+
+model Meeting {
+  id String @id @default(cuid())
+  committeeId String?
+  committee Committee? @relation(fields: [committeeId], references: [id])
+  title String
+  startsAt DateTime
+  agenda String?
+  notes String?
+  decisions String?
+  attachments Json?
+  participants MeetingParticipant[]
+}
+
+model MeetingParticipant {
+  meetingId String
+  personId String
+  attendanceStatus String?
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  @@id([meetingId, personId])
+}
+
+model NewsPost {
+  id String @id @default(cuid())
+  titleAr String
+  titleFr String?
+  bodyAr String
+  bodyFr String?
+  imageUrl String?
+  category String?
+  authorId String
+  status PublicationStatus @default(DRAFT)
+  visibility ContentVisibility @default(INTERNAL)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, visibility, publishedAt])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action String
+  entity String
+  entityId String
+  before Json?
+  after Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  @@index([entity, entityId, createdAt])
+}

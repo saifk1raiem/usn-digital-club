@@ -1,0 +1,34 @@
+{
+  "name": "usn-digital-club",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev --workspace=@usn/web",
+    "dev:web": "npm run dev --workspace=@usn/web",
+    "dev:api": "npm run start:dev --workspace=@usn/api",
+    "dev:mobile": "npm run start --workspace=@usn/mobile",
+    "build:packages": "npm run build --workspace=@usn/types && npm run build --workspace=@usn/config && npm run build --workspace=@usn/utils && npm run build --workspace=@usn/ui",
+    "build": "npm run build:packages && npm run build --workspace=@usn/api && npm run build --workspace=@usn/web",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "npm run prisma:generate --workspace=@usn/api",
+    "db:migrate": "npm run prisma:migrate --workspace=@usn/api",
+    "db:seed": "npm run prisma:seed --workspace=@usn/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "eslint": "^9.35.0",
+    "expo-router": "57.0.23",
+    "prettier": "^3.6.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-safe-area-context": "5.7.0",
+    "@types/react": "19.2.4",
+    "typescript-eslint": "^8.42.0",
+    "typescript": "^5.9.2"
+  }
+}
