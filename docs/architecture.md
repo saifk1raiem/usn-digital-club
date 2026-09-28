@@ -68,12 +68,8 @@ and dedicated policies in their implementation phases.
 
 ## Supabase hosting
 
-Production PostgreSQL is hosted by Supabase in the USN organization:
-
-- project: `usn-digital-club`
-- project ref: `kfkdqprvuyegdayhqkwq`
-- region: Paris (`eu-west-3`)
-- PostgreSQL: 17
+Production PostgreSQL may be hosted by Supabase. Project identifiers, region details, connection
+strings, and credentials are environment-specific and must not be committed to the repository.
 
 The database remains a private backend database. All 49 application tables have RLS enabled and
 the `anon`, `authenticated`, and `service_role` Data API roles have no table, sequence, or function
@@ -117,8 +113,9 @@ and player conversion use `trials.view` / `trials.manage`; conversion additional
 - `PUT /users/roles/:roleKey/permissions`
 
 Role and status changes revoke outstanding refresh tokens and are audited without password hashes.
-The development seed reconciles removed as well as added role permissions. Production seeding
-requires `SEED_ADMIN_PASSWORD`; the documented default password is development-only.
+The development seed reconciles removed as well as added role permissions. Seeding requires
+environment-specific `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` values and has no credential
+fallback.
 
 ## Localization
 

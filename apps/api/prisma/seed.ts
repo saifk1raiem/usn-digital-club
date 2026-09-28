@@ -64,7 +64,10 @@ const physicalTestSeeds = [
 ] as const;
 
 async function main() {
-  if (process.env.NODE_ENV === 'production' && !process.env.SEED_ADMIN_PASSWORD) throw new Error('SEED_ADMIN_PASSWORD is required when seeding production');
+  const seedAdminEmail = process.env.SEED_ADMIN_EMAIL;
+  const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (!seedAdminEmail || !seedAdminPassword) throw new Error('SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required when seeding');
+  if (seedAdminPassword.length < 12) throw new Error('SEED_ADMIN_PASSWORD must contain at least 12 characters');
   const club = await prisma.club.upsert({
     where: { id: 'usn-club' }, update: {},
     create: { id: 'usn-club', nameAr: 'الاتحاد الرياضي بالناظور', nameFr: 'Union Sportive de Nadhour', shortName: 'USN', founded: 1977, locationAr: 'الناظور، زغوان، تونس', locationFr: 'Nadhour, Zaghouan, Tunisie' },
@@ -123,25 +126,25 @@ async function main() {
     create: { id: 'admin-person', firstName: 'Admin', lastName: 'USN', fullNameAr: 'مدير نظام الاتحاد' },
   });
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@usn.tn' }, update: { status: 'ACTIVE' },
-    create: { email: 'admin@usn.tn', passwordHash: await hash(process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!', 12), status: 'ACTIVE', locale: 'ar', personId: adminPerson.id },
+    where: { email: seedAdminEmail }, update: { status: 'ACTIVE' },
+    create: { email: seedAdminEmail, passwordHash: await hash(seedAdminPassword, 12), status: 'ACTIVE', locale: 'ar', personId: adminPerson.id },
   });
   await prisma.userRole.upsert({ where: { userId_roleId: { userId: admin.id, roleId: superAdminId } }, update: { isGlobal: true }, create: { userId: admin.id, roleId: superAdminId, isGlobal: true } });
 
   const staffSeeds: Array<[string, string, string, string, string | null, string[]]> = [
-    ['Abderrazak', 'Bouzid', 'عبد الرزاق بوزيد', 'TECHNICAL_DIRECTOR', null, ['COMMITTEE_MEMBER']],
-    ['Mohsen', 'Ferjani', 'محسن فرجاني', 'HEAD_COACH', 'SENIORS', []],
-    ['Haythem', 'Jaziri', 'هيثم الجزيري', 'ASSISTANT_COACH', 'SENIORS', []],
-    ['Mohamed Jihad', 'Doctor', 'الدكتور محمد جهاد', 'PHYSICAL_COACH', null, []],
-    ['Jihad', 'Adouli', 'جهاد العدولي', 'GOALKEEPER_COACH', 'SENIORS', ['COACH']],
-    ['Tahar', 'Hammami', 'الطاهر الهمامي', 'COACH', 'U21', []],
-    ['Mohamed Amine', 'Ben Amor', 'محمد أمين بن عمر', 'COACH', 'U17', []],
-    ['Aziz', 'Toumi', 'عزيز التومي', 'COACH', 'U15', []],
-    ['Sondos', 'Ben Ibrahim', 'سندس بن إبراهيم', 'PHYSIOTHERAPIST', null, []],
-    ['Hatem', 'Zaid', 'حاتم زيد', 'NURSE', null, ['COMMITTEE_MEMBER']],
-    ['Ahmed', 'Ben Mohamed', 'أحمد بن محمد', 'TEAM_ACCOMPANIER', 'SENIORS', []],
-    ['Ridha', 'Ben Slimane', 'رضا بن سليمان', 'FACILITY_KIT_MANAGER', null, []],
-    ['Zahrouni', 'Ben Amor', 'الزهروتي بن عمر', 'EQUIPMENT_MANAGER', null, []],
+    ['Technical', 'Director', 'مدير فني تجريبي', 'TECHNICAL_DIRECTOR', null, ['COMMITTEE_MEMBER']],
+    ['Head', 'Coach', 'مدرب أول تجريبي', 'HEAD_COACH', 'SENIORS', []],
+    ['Assistant', 'Coach', 'مدرب مساعد تجريبي', 'ASSISTANT_COACH', 'SENIORS', []],
+    ['Physical', 'Coach', 'مدرب إعداد بدني تجريبي', 'PHYSICAL_COACH', null, []],
+    ['Goalkeeper', 'Coach', 'مدرب حراس تجريبي', 'GOALKEEPER_COACH', 'SENIORS', ['COACH']],
+    ['Under21', 'Coach', 'مدرب الأواسط التجريبي', 'COACH', 'U21', []],
+    ['Under17', 'Coach', 'مدرب الأصاغر التجريبي', 'COACH', 'U17', []],
+    ['Under15', 'Coach', 'مدرب الأداني التجريبي', 'COACH', 'U15', []],
+    ['Demo', 'Physiotherapist', 'أخصائي علاج تجريبي', 'PHYSIOTHERAPIST', null, []],
+    ['Demo', 'Nurse', 'ممرض تجريبي', 'NURSE', null, ['COMMITTEE_MEMBER']],
+    ['Team', 'Accompanier', 'مرافق فريق تجريبي', 'TEAM_ACCOMPANIER', 'SENIORS', []],
+    ['Facility', 'Manager', 'مسؤول ملاعب تجريبي', 'FACILITY_KIT_MANAGER', null, []],
+    ['Equipment', 'Manager', 'مسؤول معدات تجريبي', 'EQUIPMENT_MANAGER', null, []],
   ];
   const people = new Map<string, string>();
   for (const [firstName, lastName, fullNameAr, primaryPosition, categoryCode, extraPositions] of staffSeeds) {
@@ -152,7 +155,7 @@ async function main() {
     const assignments = [primaryPosition, ...extraPositions];
     for (let index = 0; index < assignments.length; index += 1) {
       const positionCode = assignments[index]!;
-      const assignmentCategoryCode = fullNameAr === 'جهاد العدولي' && positionCode === 'COACH' ? 'ACADEMY' : categoryCode;
+      const assignmentCategoryCode = fullNameAr === 'مدرب حراس تجريبي' && positionCode === 'COACH' ? 'ACADEMY' : categoryCode;
       const existing = await prisma.staffAssignment.findFirst({ where: { staffId: staff.id, seasonId: season.id, positionId: positions.get(positionCode)! } });
       if (existing) await prisma.staffAssignment.update({ where: { id: existing.id }, data: { categoryId: assignmentCategoryCode ? categories.get(assignmentCategoryCode) : null } });
       else await prisma.staffAssignment.create({ data: { staffId: staff.id, seasonId: season.id, categoryId: assignmentCategoryCode ? categories.get(assignmentCategoryCode) : null, positionId: positions.get(positionCode)!, startDate: season.startsAt, isPrimary: index === 0 } });
@@ -160,7 +163,7 @@ async function main() {
   }
 
   const committee = await prisma.committee.findFirst({ where: { clubId: club.id, seasonId: season.id, nameFr: 'Comité directeur' } }) ?? await prisma.committee.create({ data: { clubId: club.id, seasonId: season.id, nameAr: 'الهيئة المديرة', nameFr: 'Comité directeur' } });
-  for (const fullNameAr of ['عبد الرزاق بوزيد', 'حاتم زيد']) {
+  for (const fullNameAr of ['مدير فني تجريبي', 'ممرض تجريبي']) {
     await prisma.committeeMember.upsert({ where: { committeeId_personId_titleAr: { committeeId: committee.id, personId: people.get(fullNameAr)!, titleAr: 'عضو الهيئة المديرة' } }, update: { active: true }, create: { committeeId: committee.id, personId: people.get(fullNameAr)!, titleAr: 'عضو الهيئة المديرة', titleFr: 'Membre du comité directeur' } });
   }
 

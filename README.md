@@ -1,8 +1,8 @@
 # USN Digital Club
 
-Private club operating system for **Union Sportive de Nadhour**. Arabic is the default
-language; French is fully supported. The public website remains a separate consumer of the
-future public-content API.
+A club operations platform for managing teams, training sessions, attendance, matches,
+announcements, medical availability, performance testing, guardians, and player trials.
+Arabic is the default language, with French support across the web and mobile apps.
 
 ## Workspace
 
@@ -18,39 +18,54 @@ See [`docs/architecture.md`](docs/architecture.md) for the domain and authorizat
 
 ## Local development
 
-1. Copy `.env.example` to `.env` and change secrets.
-2. Run `npm install`.
-3. Start PostgreSQL with `docker compose up -d postgres`.
-4. Run `npm run db:generate`, `npm run db:migrate`, then `npm run db:seed`.
-5. Start the API with `npm run dev:api` and dashboard with `npm run dev:web`.
+1. Copy `.env.example` to `.env`.
+2. Replace every placeholder with your own local value. Never commit an `.env` file.
+3. Run `npm install`.
+4. Start PostgreSQL with `docker compose up -d postgres`.
+5. Run `npm run db:generate`, `npm run db:migrate`, and `npm run db:seed`.
+6. Start the API with `npm run dev:api` and the dashboard with `npm run dev:web`.
+
+Create development users with credentials unique to your environment. Do not publish shared,
+default, production, or hosted-environment credentials in documentation or source control.
 
 ## Test on a phone
 
 1. Put the computer and phone on the same Wi-Fi network.
-2. Set `EXPO_PUBLIC_API_URL=http://<computer-lan-ip>:4000/api/v1` in `apps/mobile/.env`.
+2. Set `EXPO_PUBLIC_API_URL=http://<computer-lan-ip>:4000/api/v1` in
+   `apps/mobile/.env`.
 3. Start the API with `npm run dev:api`.
 4. Start Expo with `npm run dev:mobile`, then scan the QR code in Expo Go.
 
-Phase 2 includes database-backed training and attendance, matches and squads, internal announcements, and in-app notifications on both web and mobile.
+Only the API base URL may be exposed to the Expo client. Database credentials and service-role
+keys must remain server-side.
 
-Phase 3 adds category-scoped medical availability with confidential-note redaction, configurable
-physical testing, guardian/player links, and the player-trial workflow. The Arabic/French dashboard
-routes are `/medical`, `/performance`, `/guardians`, and `/trials`.
+## Database and security
 
-Seed login: `admin@usn.tn` / `ChangeMe123!` (development only; change immediately).
+The API supports PostgreSQL hosted locally or through Supabase. Configure the server-only
+`DATABASE_URL` in the API environment and apply the Prisma migrations before starting the app.
 
-Production seeding requires a strong `SEED_ADMIN_PASSWORD`; the development default is rejected when `NODE_ENV=production`.
+The NestJS API is the supported data-access layer. Never place database connection strings,
+service-role keys, signing secrets, or administrative credentials in `NEXT_PUBLIC_*` or
+`EXPO_PUBLIC_*` variables.
 
-## Supabase database
+Role-based authorization and category scoping are enforced by the API. Sensitive medical notes
+are redacted from roles that do not have confidential-data permission.
 
-The hosted database is provisioned in the **USN** Supabase organization as
-`usn-digital-club` (project ref `kfkdqprvuyegdayhqkwq`, Paris `eu-west-3`). Its application
-schema, RBAC foundation, seed data, RLS hardening, and foreign-key indexes are applied.
+## Public repository checklist
 
-The Supabase Data API roles have no access to the private application tables. The Nest API is the
-only supported data-access layer and must use a server-only PostgreSQL `DATABASE_URL`. Never expose
-that URL through a `NEXT_PUBLIC_*` or `EXPO_PUBLIC_*` variable. The hosted seed account is
-`admin@usn.tn`; its generated password is stored only in the ignored `apps/api/.env` file.
+- Keep `.env` files and generated credentials untracked.
+- Use placeholder values in examples and documentation.
+- Rotate any credential that has ever been committed, even if it was later removed.
+- Review staged changes for secrets before every push.
+- Configure production users and secrets outside the repository.
 
-See [`docs/architecture.md`](docs/architecture.md#supabase-hosting) for the security model and
-deployment notes.
+## Validation
+
+Use the workspace scripts to validate changes:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
