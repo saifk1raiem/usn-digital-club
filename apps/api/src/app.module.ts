@@ -24,7 +24,7 @@ import { TrialsModule } from './trials/trials.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), PrismaModule, AuthModule, UsersModule, SeasonsModule, CategoriesModule, StaffModule, PlayersModule, TrainingsModule, MatchesModule, MedicalModule, PerformanceModule, GuardiansModule, TrialsModule, AnnouncementsModule, NotificationsModule, FacilitiesModule, DashboardModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'] }), ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), PrismaModule, AuthModule, UsersModule, SeasonsModule, CategoriesModule, StaffModule, PlayersModule, TrainingsModule, MatchesModule, MedicalModule, PerformanceModule, GuardiansModule, TrialsModule, AnnouncementsModule, NotificationsModule, FacilitiesModule, DashboardModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

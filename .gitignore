@@ -12,3 +12,4 @@ apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
 generated
 .turbo
+apps/api/.postgres/
