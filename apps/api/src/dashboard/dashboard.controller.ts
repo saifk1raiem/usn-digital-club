@@ -16,6 +16,8 @@ export class DashboardController {
     const now = new Date(); const inNinetyDays = new Date(now.getTime() + 90 * 86_400_000);
     const categoryIds = this.authorization.scopedCategoryIds(user, 'dashboard.view');
     const categoryWhere = categoryIds ? { categoryId: { in: categoryIds } } : {};
+    const visiblePlayerIds = [...new Set([...(user.playerId ? [user.playerId] : []), ...user.guardianPlayerIds])];
+    const memberOnlyTrainings = (user.roles.includes('PLAYER') || user.roles.includes('PARENT')) && !user.permissions.includes('training.create') && !user.permissions.includes('training.manageAttendance');
     const rosterWhere: Prisma.PlayerWhereInput = { seasons: { some: { season: { isCurrent: true }, leftAt: null, ...categoryWhere } }, status: { not: 'LEFT_CLUB' } };
     const intersectScope = (permission: 'staff.view' | 'medical.viewAvailability') => {
       if (!user.permissions.includes(permission)) return [] as string[];
@@ -36,7 +38,7 @@ export class DashboardController {
       this.prisma.category.count({ where: { season: { isCurrent: true }, active: true, ...(categoryIds ? { id: { in: categoryIds } } : {}) } }),
       canViewStaff ? this.prisma.staffProfile.count({ where: { assignments: { some: { season: { isCurrent: true }, ...(staffCategoryIds ? { categoryId: { in: staffCategoryIds } } : {}) } } } }) : 0,
       canViewAvailability ? this.prisma.player.count({ where: { seasons: { some: { season: { isCurrent: true }, leftAt: null, ...(medicalCategoryIds ? { categoryId: { in: medicalCategoryIds } } : {}) } }, status: 'INJURED' } }) : 0,
-      this.prisma.trainingSession.findMany({ where: { startsAt: { gte: now }, ...categoryWhere }, include: { category: true, facility: true }, orderBy: { startsAt: 'asc' }, take: 4 }),
+      this.prisma.trainingSession.findMany({ where: { startsAt: { gte: now }, ...categoryWhere, ...(memberOnlyTrainings ? { attendance: { some: { playerId: { in: visiblePlayerIds } } } } : {}) }, include: { category: true, facility: true, _count: { select: { attendance: true } } }, orderBy: { startsAt: 'asc' }, take: 4 }),
       this.prisma.match.findMany({ where: { kickoffAt: { gte: now }, ...categoryWhere }, include: { category: true }, orderBy: { kickoffAt: 'asc' }, take: 4 }),
       canViewContracts ? this.prisma.document.count({ where: { expiryDate: { gte: now, lte: inNinetyDays } } }) : 0,
       canViewContracts ? this.prisma.contract.count({ where: { endsAt: { gte: now, lte: inNinetyDays } } }) : 0,

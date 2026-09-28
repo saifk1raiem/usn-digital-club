@@ -1,6 +1,6 @@
 import { AttendanceStatus, AvailabilityResponse, TrainingType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 export class CreateTrainingDto {
   @IsString() seasonId!: string;
@@ -12,6 +12,7 @@ export class CreateTrainingDto {
   @IsOptional() @IsInt() @Min(1) @Max(10) intensity?: number;
   @IsOptional() @IsString() objective?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true }) playerIds?: string[];
 }
 
 export class TrainingQueryDto {
