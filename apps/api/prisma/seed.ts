@@ -4,20 +4,21 @@ import { hash } from 'bcryptjs';
 const prisma = new PrismaClient();
 
 const permissionKeys = [
-  'dashboard.view','players.view','players.create','players.edit','staff.view','staff.manage',
+  'dashboard.view','players.view','players.create','players.edit','team.view','staff.view','staff.manage',
   'training.view','training.create','training.manageAttendance','matches.view','matches.create',
   'matches.selectSquad','medical.viewAvailability','medical.viewDetails','medical.edit',
-  'performance.view','performance.edit','contracts.view','contracts.manage','equipment.manage',
+  'performance.view','performance.edit','guardians.view','guardians.manage','trials.view','trials.manage',
+  'contracts.view','contracts.manage','equipment.manage',
   'categories.manage','seasons.manage','users.manage','news.publish','announcements.view',
   'announcements.publish','notifications.view',
 ];
 
 const rolePermissionSeeds: Record<string, string[]> = {
   SUPER_ADMIN: permissionKeys,
-  PRESIDENT: ['dashboard.view','players.view','staff.view','training.view','matches.view','medical.viewAvailability','performance.view','contracts.view','categories.manage','seasons.manage','news.publish'],
-  MANAGEMENT: ['dashboard.view','players.view','staff.view','training.view','matches.view','medical.viewAvailability','contracts.view','equipment.manage','news.publish'],
-  TECHNICAL_DIRECTOR: ['dashboard.view','players.view','players.create','players.edit','staff.view','staff.manage','training.view','training.create','training.manageAttendance','matches.view','matches.create','matches.selectSquad','medical.viewAvailability','performance.view','performance.edit','categories.manage'],
-  HEAD_COACH: ['dashboard.view','players.view','players.edit','staff.view','training.view','training.create','training.manageAttendance','matches.view','matches.create','matches.selectSquad','medical.viewAvailability','performance.view','performance.edit'],
+  PRESIDENT: ['dashboard.view','players.view','staff.view','training.view','matches.view','medical.viewAvailability','performance.view','guardians.view','trials.view','contracts.view','categories.manage','seasons.manage','news.publish'],
+  MANAGEMENT: ['dashboard.view','players.view','staff.view','training.view','matches.view','medical.viewAvailability','guardians.view','guardians.manage','trials.view','trials.manage','contracts.view','equipment.manage','news.publish'],
+  TECHNICAL_DIRECTOR: ['dashboard.view','players.view','players.create','players.edit','staff.view','staff.manage','training.view','training.create','training.manageAttendance','matches.view','matches.create','matches.selectSquad','medical.viewAvailability','performance.view','performance.edit','guardians.view','guardians.manage','trials.view','trials.manage','categories.manage'],
+  HEAD_COACH: ['dashboard.view','players.view','players.edit','staff.view','training.view','training.create','training.manageAttendance','matches.view','matches.create','matches.selectSquad','medical.viewAvailability','performance.view','performance.edit','guardians.view','trials.view','trials.manage'],
   ASSISTANT_COACH: ['dashboard.view','players.view','staff.view','training.view','training.create','training.manageAttendance','matches.view','medical.viewAvailability','performance.view'],
   GOALKEEPER_COACH: ['dashboard.view','players.view','training.view','training.create','matches.view','medical.viewAvailability','performance.view','performance.edit'],
   PHYSICAL_COACH: ['dashboard.view','players.view','training.view','medical.viewAvailability','performance.view','performance.edit'],
@@ -30,6 +31,7 @@ const rolePermissionSeeds: Record<string, string[]> = {
 };
 
 for (const [role, keys] of Object.entries(rolePermissionSeeds)) {
+  if ((keys.includes('players.view') || ['PLAYER', 'PARENT'].includes(role)) && !keys.includes('team.view')) keys.push('team.view');
   if (role !== 'SUPER_ADMIN') keys.push('announcements.view', 'notifications.view');
   if (['PRESIDENT', 'MANAGEMENT', 'TECHNICAL_DIRECTOR', 'HEAD_COACH'].includes(role)) keys.push('announcements.publish');
 }
@@ -49,11 +51,25 @@ const positionSeeds = [
   ['COMMITTEE_MEMBER', 'عضو الهيئة المديرة', 'Membre du comité directeur'],
 ] as const;
 
+const physicalTestSeeds = [
+  ['WEIGHT', 'الوزن', 'Poids', 'kg', false],
+  ['HEIGHT', 'الطول', 'Taille', 'cm', false],
+  ['SPRINT_10M', 'سرعة 10 أمتار', 'Sprint 10 m', 's', true],
+  ['SPRINT_30M', 'سرعة 30 مترا', 'Sprint 30 m', 's', true],
+  ['AGILITY', 'الرشاقة', 'Agilité', 's', true],
+  ['VERTICAL_JUMP', 'القفز العمودي', 'Détente verticale', 'cm', false],
+  ['YOYO', 'اختبار يويو', 'Test Yo-Yo', 'm', false],
+  ['RPE', 'الإجهاد المدرك', 'RPE', '/10', true],
+  ['TRAINING_LOAD', 'الحمل التدريبي', "Charge d'entraînement", 'AU', false],
+] as const;
+
 async function main() {
+  if (process.env.NODE_ENV === 'production' && !process.env.SEED_ADMIN_PASSWORD) throw new Error('SEED_ADMIN_PASSWORD is required when seeding production');
   const club = await prisma.club.upsert({
     where: { id: 'usn-club' }, update: {},
     create: { id: 'usn-club', nameAr: 'الاتحاد الرياضي بالناظور', nameFr: 'Union Sportive de Nadhour', shortName: 'USN', founded: 1977, locationAr: 'الناظور، زغوان، تونس', locationFr: 'Nadhour, Zaghouan, Tunisie' },
   });
+  await prisma.season.updateMany({ where: { clubId: club.id, isCurrent: true, name: { not: '2026/2027' } }, data: { isCurrent: false } });
   const season = await prisma.season.upsert({
     where: { clubId_name: { clubId: club.id, name: '2026/2027' } },
     update: { isCurrent: true },
@@ -80,6 +96,14 @@ async function main() {
     positions.set(code, position.id);
   }
 
+  for (const [code, nameAr, nameFr, defaultUnit, lowerIsBetter] of physicalTestSeeds) {
+    await prisma.physicalTestType.upsert({
+      where: { code },
+      update: { nameAr, nameFr, defaultUnit, lowerIsBetter, active: true },
+      create: { code, nameAr, nameFr, defaultUnit, lowerIsBetter },
+    });
+  }
+
   const permissions = new Map<string, string>();
   for (const key of permissionKeys) {
     const permission = await prisma.permission.upsert({ where: { key }, update: {}, create: { key } });
@@ -89,6 +113,7 @@ async function main() {
   for (const [key, keys] of Object.entries(rolePermissionSeeds)) {
     const role = await prisma.role.upsert({ where: { key }, update: {}, create: { key, nameAr: key === 'SUPER_ADMIN' ? 'مدير النظام' : key.replaceAll('_', ' '), nameFr: key.replaceAll('_', ' ') } });
     roles.set(key, role.id);
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id, permissionId: { notIn: keys.map((permissionKey) => permissions.get(permissionKey)!) } } });
     await prisma.rolePermission.createMany({ data: keys.map((permissionKey) => ({ roleId: role.id, permissionId: permissions.get(permissionKey)! })), skipDuplicates: true });
   }
   const superAdminId = roles.get('SUPER_ADMIN')!;
@@ -99,9 +124,9 @@ async function main() {
   });
   const admin = await prisma.user.upsert({
     where: { email: 'admin@usn.tn' }, update: { status: 'ACTIVE' },
-    create: { email: 'admin@usn.tn', passwordHash: await hash('ChangeMe123!', 12), status: 'ACTIVE', locale: 'ar', personId: adminPerson.id },
+    create: { email: 'admin@usn.tn', passwordHash: await hash(process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!', 12), status: 'ACTIVE', locale: 'ar', personId: adminPerson.id },
   });
-  await prisma.userRole.upsert({ where: { userId_roleId: { userId: admin.id, roleId: superAdminId } }, update: {}, create: { userId: admin.id, roleId: superAdminId } });
+  await prisma.userRole.upsert({ where: { userId_roleId: { userId: admin.id, roleId: superAdminId } }, update: { isGlobal: true }, create: { userId: admin.id, roleId: superAdminId, isGlobal: true } });
 
   const staffSeeds: Array<[string, string, string, string, string | null, string[]]> = [
     ['Abderrazak', 'Bouzid', 'عبد الرزاق بوزيد', 'TECHNICAL_DIRECTOR', null, ['COMMITTEE_MEMBER']],

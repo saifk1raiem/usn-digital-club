@@ -16,4 +16,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
   await app.listen(config.get<number>('PORT', 4000));
 }
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error('API startup failed', error);
+  process.exitCode = 1;
+});

@@ -33,4 +33,24 @@ See [`docs/architecture.md`](docs/architecture.md) for the domain and authorizat
 
 Phase 2 includes database-backed training and attendance, matches and squads, internal announcements, and in-app notifications on both web and mobile.
 
+Phase 3 adds category-scoped medical availability with confidential-note redaction, configurable
+physical testing, guardian/player links, and the player-trial workflow. The Arabic/French dashboard
+routes are `/medical`, `/performance`, `/guardians`, and `/trials`.
+
 Seed login: `admin@usn.tn` / `ChangeMe123!` (development only; change immediately).
+
+Production seeding requires a strong `SEED_ADMIN_PASSWORD`; the development default is rejected when `NODE_ENV=production`.
+
+## Supabase database
+
+The hosted database is provisioned in the **USN** Supabase organization as
+`usn-digital-club` (project ref `kfkdqprvuyegdayhqkwq`, Paris `eu-west-3`). Its application
+schema, RBAC foundation, seed data, RLS hardening, and foreign-key indexes are applied.
+
+The Supabase Data API roles have no access to the private application tables. The Nest API is the
+only supported data-access layer and must use a server-only PostgreSQL `DATABASE_URL`. Never expose
+that URL through a `NEXT_PUBLIC_*` or `EXPO_PUBLIC_*` variable. The hosted seed account is
+`admin@usn.tn`; its generated password is stored only in the ignored `apps/api/.env` file.
+
+See [`docs/architecture.md`](docs/architecture.md#supabase-hosting) for the security model and
+deployment notes.

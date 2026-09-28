@@ -1,0 +1,45 @@
+-- Index foreign-key columns used by relation lookups and referential actions.
+-- This migration was applied to Supabase as `foreign_key_query_indexes`.
+
+CREATE INDEX IF NOT EXISTS "UserRole_roleId_idx" ON "UserRole"("roleId");
+CREATE INDEX IF NOT EXISTS "RolePermission_permissionId_idx" ON "RolePermission"("permissionId");
+CREATE INDEX IF NOT EXISTS "Category_seasonId_clubId_idx" ON "Category"("seasonId", "clubId");
+CREATE INDEX IF NOT EXISTS "Category_clubId_idx" ON "Category"("clubId");
+CREATE INDEX IF NOT EXISTS "StaffAssignment_seasonId_idx" ON "StaffAssignment"("seasonId");
+CREATE INDEX IF NOT EXISTS "StaffAssignment_positionId_idx" ON "StaffAssignment"("positionId");
+CREATE INDEX IF NOT EXISTS "PlayerSeason_seasonId_idx" ON "PlayerSeason"("seasonId");
+CREATE INDEX IF NOT EXISTS "TrainingSession_seasonId_idx" ON "TrainingSession"("seasonId");
+CREATE INDEX IF NOT EXISTS "TrainingSession_categoryId_seasonId_idx" ON "TrainingSession"("categoryId", "seasonId");
+CREATE INDEX IF NOT EXISTS "TrainingSession_facilityId_idx" ON "TrainingSession"("facilityId");
+CREATE INDEX IF NOT EXISTS "Match_seasonId_idx" ON "Match"("seasonId");
+CREATE INDEX IF NOT EXISTS "Match_categoryId_seasonId_idx" ON "Match"("categoryId", "seasonId");
+CREATE INDEX IF NOT EXISTS "Match_facilityId_idx" ON "Match"("facilityId");
+CREATE INDEX IF NOT EXISTS "MatchEvent_playerId_idx" ON "MatchEvent"("playerId");
+CREATE INDEX IF NOT EXISTS "MatchEvent_relatedPlayerId_idx" ON "MatchEvent"("relatedPlayerId");
+CREATE INDEX IF NOT EXISTS "PhysicalTestResult_testTypeId_idx" ON "PhysicalTestResult"("testTypeId");
+CREATE INDEX IF NOT EXISTS "PhysicalTestResult_responsibleStaffId_idx" ON "PhysicalTestResult"("responsibleStaffId");
+CREATE INDEX IF NOT EXISTS "MedicalCase_responsibleStaffId_idx" ON "MedicalCase"("responsibleStaffId");
+CREATE INDEX IF NOT EXISTS "MedicalUpdate_caseId_idx" ON "MedicalUpdate"("caseId");
+CREATE INDEX IF NOT EXISTS "MedicalUpdate_createdById_idx" ON "MedicalUpdate"("createdById");
+CREATE INDEX IF NOT EXISTS "TrialEvent_categoryId_idx" ON "TrialEvent"("categoryId");
+CREATE INDEX IF NOT EXISTS "TrialEvent_facilityId_idx" ON "TrialEvent"("facilityId");
+CREATE INDEX IF NOT EXISTS "TrialCandidate_trialEventId_idx" ON "TrialCandidate"("trialEventId");
+CREATE INDEX IF NOT EXISTS "TrialEvaluation_candidateId_idx" ON "TrialEvaluation"("candidateId");
+CREATE INDEX IF NOT EXISTS "TrialEvaluation_evaluatorId_idx" ON "TrialEvaluation"("evaluatorId");
+CREATE INDEX IF NOT EXISTS "EquipmentTransaction_equipmentId_idx" ON "EquipmentTransaction"("equipmentId");
+CREATE INDEX IF NOT EXISTS "EquipmentTransaction_assignedToId_idx" ON "EquipmentTransaction"("assignedToId");
+CREATE INDEX IF NOT EXISTS "KitItem_seasonId_idx" ON "KitItem"("seasonId");
+CREATE INDEX IF NOT EXISTS "KitAssignment_kitItemId_idx" ON "KitAssignment"("kitItemId");
+CREATE INDEX IF NOT EXISTS "KitAssignment_playerId_idx" ON "KitAssignment"("playerId");
+CREATE INDEX IF NOT EXISTS "Contract_personId_idx" ON "Contract"("personId");
+CREATE INDEX IF NOT EXISTS "Announcement_authorId_idx" ON "Announcement"("authorId");
+CREATE INDEX IF NOT EXISTS "SeasonObjective_seasonId_idx" ON "SeasonObjective"("seasonId");
+CREATE INDEX IF NOT EXISTS "SeasonObjective_categoryId_seasonId_idx" ON "SeasonObjective"("categoryId", "seasonId");
+CREATE INDEX IF NOT EXISTS "SeasonObjective_ownerId_idx" ON "SeasonObjective"("ownerId");
+CREATE INDEX IF NOT EXISTS "Committee_clubId_idx" ON "Committee"("clubId");
+CREATE INDEX IF NOT EXISTS "Committee_seasonId_clubId_idx" ON "Committee"("seasonId", "clubId");
+CREATE INDEX IF NOT EXISTS "CommitteeMember_personId_idx" ON "CommitteeMember"("personId");
+CREATE INDEX IF NOT EXISTS "Meeting_committeeId_idx" ON "Meeting"("committeeId");
+CREATE INDEX IF NOT EXISTS "MeetingParticipant_personId_idx" ON "MeetingParticipant"("personId");
+CREATE INDEX IF NOT EXISTS "NewsPost_authorId_idx" ON "NewsPost"("authorId");
+CREATE INDEX IF NOT EXISTS "AuditLog_userId_idx" ON "AuditLog"("userId");

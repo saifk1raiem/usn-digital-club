@@ -201,7 +201,7 @@ model User {
   status                 UserStatus              @default(INVITED)
   locale                 String                  @default("ar")
   personId               String                  @unique
-  person                 Person                  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person                 Person                  @relation(fields: [personId], references: [id], onDelete: Restrict)
   roles                  UserRole[]
   refreshTokens          RefreshToken[]
   announcements          Announcement[]          @relation("AnnouncementAuthor")
@@ -210,6 +210,7 @@ model User {
   notifications          Notification[]
   objectives             SeasonObjective[]       @relation("ObjectiveOwner")
   auditLogs              AuditLog[]
+  newsPosts              NewsPost[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }
@@ -231,12 +232,28 @@ model Permission {
 }
 
 model UserRole {
-  userId String
-  roleId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  userId    String
+  roleId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role            @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  isGlobal  Boolean         @default(false)
+  scopes    UserRoleScope[]
+  createdAt DateTime        @default(now())
 
   @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model UserRoleScope {
+  userId     String
+  roleId     String
+  categoryId String
+  userRole   UserRole @relation(fields: [userId, roleId], references: [userId, roleId], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([userId, roleId, categoryId])
+  @@index([categoryId])
 }
 
 model RolePermission {
@@ -246,6 +263,7 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model RefreshToken {
@@ -256,33 +274,37 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
+
+  @@index([userId, revokedAt, expiresAt])
 }
 
 model Person {
-  id                   String            @id @default(cuid())
-  firstName            String
-  lastName             String
-  fullNameAr           String
-  dateOfBirth          DateTime?
-  gender               Gender?
-  nationality          String?           @default("Tunisian")
-  phone                String?
-  emergencyContact     String?
-  photoUrl             String?
-  user                 User?
-  staffProfile         StaffProfile?
-  player               Player?
-  guardian             Guardian?
-  contracts            Contract[]
-  committeeMemberships CommitteeMember[]
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  id                    String                 @id @default(cuid())
+  firstName             String
+  lastName              String
+  fullNameAr            String
+  dateOfBirth           DateTime?
+  gender                Gender?
+  nationality           String?                @default("Tunisian")
+  phone                 String?
+  emergencyContact      String?
+  photoUrl              String?
+  user                  User?
+  staffProfile          StaffProfile?
+  player                Player?
+  guardian              Guardian?
+  contracts             Contract[]
+  committeeMemberships  CommitteeMember[]
+  meetingParticipations MeetingParticipant[]
+  equipmentTransactions EquipmentTransaction[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 }
 
 model Season {
   id               String            @id @default(cuid())
   clubId           String
-  club             Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club             Club              @relation(fields: [clubId], references: [id], onDelete: Restrict)
   name             String
   startsAt         DateTime
   endsAt           DateTime
@@ -297,15 +319,16 @@ model Season {
   committees       Committee[]
 
   @@unique([clubId, name])
+  @@unique([id, clubId])
   @@index([clubId, isCurrent])
 }
 
 model Category {
   id               String            @id @default(cuid())
   clubId           String
-  club             Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club             Club              @relation(fields: [clubId], references: [id], onDelete: Restrict)
   seasonId         String
-  season           Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season           Season            @relation(fields: [seasonId, clubId], references: [id, clubId], onDelete: Restrict)
   code             String
   nameAr           String
   nameFr           String
@@ -322,23 +345,28 @@ model Category {
   objectives       SeasonObjective[]
   trialEvents      TrialEvent[]
   announcements    Announcement[]
+  roleScopes       UserRoleScope[]
 
   @@unique([seasonId, code])
+  @@unique([id, seasonId])
   @@index([seasonId, active])
+  @@index([seasonId, clubId])
+  @@index([clubId])
 }
 
 model StaffProfile {
-  id              String               @id @default(cuid())
-  personId        String               @unique
-  person          Person               @relation(fields: [personId], references: [id], onDelete: Cascade)
-  bioAr           String?
-  bioFr           String?
-  assignments     StaffAssignment[]
-  medicalCases    MedicalCase[]        @relation("MedicalResponsible")
-  medicalUpdates  MedicalUpdate[]
-  physicalResults PhysicalTestResult[]
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id               String               @id @default(cuid())
+  personId         String               @unique
+  person           Person               @relation(fields: [personId], references: [id], onDelete: Restrict)
+  bioAr            String?
+  bioFr            String?
+  assignments      StaffAssignment[]
+  medicalCases     MedicalCase[]        @relation("MedicalResponsible")
+  medicalUpdates   MedicalUpdate[]
+  physicalResults  PhysicalTestResult[]
+  trialEvaluations TrialEvaluation[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 }
 
 model StaffPosition {
@@ -352,11 +380,11 @@ model StaffPosition {
 model StaffAssignment {
   id         String        @id @default(cuid())
   staffId    String
-  staff      StaffProfile  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staff      StaffProfile  @relation(fields: [staffId], references: [id], onDelete: Restrict)
   seasonId   String
-  season     Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season     Season        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   categoryId String?
-  category   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category   Category?     @relation(fields: [categoryId, seasonId], references: [id, seasonId], onDelete: Restrict)
   positionId String
   position   StaffPosition @relation(fields: [positionId], references: [id])
   startDate  DateTime
@@ -365,12 +393,14 @@ model StaffAssignment {
 
   @@index([staffId, seasonId])
   @@index([categoryId, seasonId])
+  @@index([seasonId])
+  @@index([positionId])
 }
 
 model Player {
   id                      String               @id @default(cuid())
   personId                String               @unique
-  person                  Person               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person                  Person               @relation(fields: [personId], references: [id], onDelete: Restrict)
   federationLicenseNumber String?              @unique
   position                String?
   preferredFoot           PreferredFoot?
@@ -382,10 +412,12 @@ model Player {
   trainingAttendance      TrainingAttendance[]
   matchSquads             MatchSquad[]
   matchStats              MatchPlayer[]
-  matchEvents             MatchEvent[]
+  matchEvents             MatchEvent[]         @relation("MatchEventPlayer")
+  relatedMatchEvents      MatchEvent[]         @relation("MatchEventRelatedPlayer")
   physicalTests           PhysicalTestResult[]
   medicalCases            MedicalCase[]
   kitAssignments          KitAssignment[]
+  convertedTrialCandidate TrialCandidate?
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
 }
@@ -393,11 +425,11 @@ model Player {
 model PlayerSeason {
   id                 String             @id @default(cuid())
   playerId           String
-  player             Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player             Player             @relation(fields: [playerId], references: [id], onDelete: Restrict)
   seasonId           String
-  season             Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season             Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   categoryId         String
-  category           Category           @relation(fields: [categoryId], references: [id])
+  category           Category           @relation(fields: [categoryId, seasonId], references: [id, seasonId], onDelete: Restrict)
   jerseyNumber       Int?
   registrationStatus RegistrationStatus @default(PENDING)
   joinedAt           DateTime           @default(now())
@@ -405,12 +437,13 @@ model PlayerSeason {
 
   @@unique([playerId, seasonId])
   @@index([categoryId, seasonId])
+  @@index([seasonId])
 }
 
 model Guardian {
   id           String           @id @default(cuid())
   personId     String           @unique
-  person       Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person       Person           @relation(fields: [personId], references: [id], onDelete: Restrict)
   relationship String?
   players      PlayerGuardian[]
 }
@@ -420,10 +453,11 @@ model PlayerGuardian {
   guardianId String
   isPrimary  Boolean  @default(false)
   canCollect Boolean  @default(false)
-  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
 
   @@id([playerId, guardianId])
+  @@index([guardianId])
 }
 
 model Facility {
@@ -445,9 +479,9 @@ model Facility {
 model TrainingSession {
   id         String               @id @default(cuid())
   seasonId   String
-  season     Season               @relation(fields: [seasonId], references: [id])
+  season     Season               @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   categoryId String
-  category   Category             @relation(fields: [categoryId], references: [id])
+  category   Category             @relation(fields: [categoryId, seasonId], references: [id, seasonId], onDelete: Restrict)
   facilityId String?
   facility   Facility?            @relation(fields: [facilityId], references: [id])
   startsAt   DateTime
@@ -461,6 +495,9 @@ model TrainingSession {
   updatedAt  DateTime             @updatedAt
 
   @@index([categoryId, startsAt])
+  @@index([seasonId])
+  @@index([categoryId, seasonId])
+  @@index([facilityId])
 }
 
 model TrainingAttendance {
@@ -476,14 +513,15 @@ model TrainingAttendance {
   player       Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@id([trainingId, playerId])
+  @@index([playerId])
 }
 
 model Match {
   id            String        @id @default(cuid())
   seasonId      String
-  season        Season        @relation(fields: [seasonId], references: [id])
+  season        Season        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   categoryId    String
-  category      Category      @relation(fields: [categoryId], references: [id])
+  category      Category      @relation(fields: [categoryId, seasonId], references: [id, seasonId], onDelete: Restrict)
   facilityId    String?
   facility      Facility?     @relation(fields: [facilityId], references: [id])
   competition   String
@@ -505,6 +543,9 @@ model Match {
   updatedAt     DateTime      @updatedAt
 
   @@index([categoryId, kickoffAt])
+  @@index([seasonId])
+  @@index([categoryId, seasonId])
+  @@index([facilityId])
 }
 
 model MatchSquad {
@@ -518,6 +559,7 @@ model MatchSquad {
   player       Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@id([matchId, playerId])
+  @@index([playerId])
 }
 
 model MatchPlayer {
@@ -536,6 +578,7 @@ model MatchPlayer {
   player            Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@id([matchId, playerId])
+  @@index([playerId])
 }
 
 model MatchEvent {
@@ -543,13 +586,16 @@ model MatchEvent {
   matchId         String
   match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   playerId        String?
-  player          Player?        @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  player          Player?        @relation("MatchEventPlayer", fields: [playerId], references: [id], onDelete: SetNull)
   type            MatchEventType
   minute          Int
   relatedPlayerId String?
+  relatedPlayer   Player?        @relation("MatchEventRelatedPlayer", fields: [relatedPlayerId], references: [id], onDelete: SetNull)
   notes           String?
 
   @@index([matchId, minute])
+  @@index([playerId])
+  @@index([relatedPlayerId])
 }
 
 model PhysicalTestType {
@@ -577,6 +623,8 @@ model PhysicalTestResult {
   notes              String?
 
   @@index([playerId, testTypeId, measuredAt])
+  @@index([testTypeId])
+  @@index([responsibleStaffId])
 }
 
 model MedicalCase {
@@ -598,6 +646,7 @@ model MedicalCase {
   updatedAt           DateTime        @updatedAt
 
   @@index([playerId, status])
+  @@index([responsibleStaffId])
 }
 
 model MedicalUpdate {
@@ -610,6 +659,9 @@ model MedicalUpdate {
   createdById      String
   createdBy        StaffProfile  @relation(fields: [createdById], references: [id])
   createdAt        DateTime      @default(now())
+
+  @@index([caseId])
+  @@index([createdById])
 }
 
 model TrialEvent {
@@ -625,6 +677,9 @@ model TrialEvent {
   maxParticipants Int?
   description     String?
   candidates      TrialCandidate[]
+
+  @@index([categoryId])
+  @@index([facilityId])
 }
 
 model TrialCandidate {
@@ -641,7 +696,10 @@ model TrialCandidate {
   notes             String?
   status            TrialStatus       @default(REGISTERED)
   convertedPlayerId String?           @unique
+  convertedPlayer   Player?           @relation(fields: [convertedPlayerId], references: [id], onDelete: SetNull)
   evaluations       TrialEvaluation[]
+
+  @@index([trialEventId])
 }
 
 model TrialEvaluation {
@@ -654,7 +712,11 @@ model TrialEvaluation {
   attitude    Float?
   notes       String?
   evaluatorId String?
+  evaluator   StaffProfile?  @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
   createdAt   DateTime       @default(now())
+
+  @@index([candidateId])
+  @@index([evaluatorId])
 }
 
 model Equipment {
@@ -680,8 +742,12 @@ model EquipmentTransaction {
   type         EquipmentTransactionType
   quantity     Int
   assignedToId String?
+  assignedTo   Person?                  @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   notes        String?
   occurredAt   DateTime                 @default(now())
+
+  @@index([equipmentId])
+  @@index([assignedToId])
 }
 
 model KitItem {
@@ -693,6 +759,8 @@ model KitItem {
   number      Int?
   condition   KitCondition    @default(GOOD)
   assignments KitAssignment[]
+
+  @@index([seasonId])
 }
 
 model KitAssignment {
@@ -703,6 +771,9 @@ model KitAssignment {
   player     Player?   @relation(fields: [playerId], references: [id])
   assignedAt DateTime  @default(now())
   returnedAt DateTime?
+
+  @@index([kitItemId])
+  @@index([playerId])
 }
 
 model Document {
@@ -738,6 +809,7 @@ model Contract {
   updatedAt     DateTime     @updatedAt
 
   @@index([endsAt])
+  @@index([personId])
 }
 
 model Announcement {
@@ -758,6 +830,9 @@ model Announcement {
   reads                   AnnouncementRead[]
   recipients              AnnouncementRecipient[]
   createdAt               DateTime                @default(now())
+
+  @@index([categoryId, publishAt, expiresAt])
+  @@index([authorId])
 }
 
 model AnnouncementRead {
@@ -769,6 +844,7 @@ model AnnouncementRead {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([announcementId, userId])
+  @@index([userId, readAt])
 }
 
 model AnnouncementRecipient {
@@ -800,7 +876,7 @@ model SeasonObjective {
   seasonId      String
   season        Season          @relation(fields: [seasonId], references: [id])
   categoryId    String
-  category      Category        @relation(fields: [categoryId], references: [id])
+  category      Category        @relation(fields: [categoryId, seasonId], references: [id, seasonId], onDelete: Restrict)
   title         String
   description   String?
   ownerId       String
@@ -809,6 +885,10 @@ model SeasonObjective {
   progress      Int             @default(0)
   progressNotes String?
   updatedAt     DateTime        @updatedAt
+
+  @@index([seasonId])
+  @@index([categoryId, seasonId])
+  @@index([ownerId])
 }
 
 model Committee {
@@ -816,11 +896,14 @@ model Committee {
   clubId   String
   club     Club              @relation(fields: [clubId], references: [id])
   seasonId String
-  season   Season            @relation(fields: [seasonId], references: [id])
+  season   Season            @relation(fields: [seasonId, clubId], references: [id, clubId], onDelete: Restrict)
   nameAr   String
   nameFr   String
   members  CommitteeMember[]
   meetings Meeting[]
+
+  @@index([clubId])
+  @@index([seasonId, clubId])
 }
 
 model CommitteeMember {
@@ -835,6 +918,7 @@ model CommitteeMember {
   active         Boolean   @default(true)
 
   @@unique([committeeId, personId, titleAr])
+  @@index([personId])
 }
 
 model Meeting {
@@ -848,6 +932,8 @@ model Meeting {
   decisions    String?
   attachments  Json?
   participants MeetingParticipant[]
+
+  @@index([committeeId])
 }
 
 model MeetingParticipant {
@@ -855,8 +941,10 @@ model MeetingParticipant {
   personId         String
   attendanceStatus String?
   meeting          Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  person           Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
 
   @@id([meetingId, personId])
+  @@index([personId])
 }
 
 model NewsPost {
@@ -868,6 +956,7 @@ model NewsPost {
   imageUrl    String?
   category    String?
   authorId    String
+  author      User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
   status      PublicationStatus @default(DRAFT)
   visibility  ContentVisibility @default(INTERNAL)
   publishedAt DateTime?
@@ -875,6 +964,7 @@ model NewsPost {
   updatedAt   DateTime          @updatedAt
 
   @@index([status, visibility, publishedAt])
+  @@index([authorId])
 }
 
 model AuditLog {
@@ -890,4 +980,5 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId, createdAt])
+  @@index([userId])
 }

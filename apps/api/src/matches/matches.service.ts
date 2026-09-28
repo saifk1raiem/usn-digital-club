@@ -10,8 +10,7 @@ export class MatchesService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
   async list(user: SessionUser, query: MatchQueryDto) {
-    if (query.categoryId) this.authorization.assertCategory(user, query.categoryId);
-    const scopedIds = this.scopedCategoryIds(user, query.categoryId);
+    const scopedIds = this.authorization.scopedCategoryIds(user, 'matches.view', query.categoryId);
     const kickoffAt: Prisma.DateTimeFilter = {};
     if (query.from) kickoffAt.gte = new Date(query.from);
     if (query.to) kickoffAt.lte = new Date(query.to);
@@ -19,14 +18,25 @@ export class MatchesService {
   }
 
   async one(id: string, user: SessionUser) {
-    const match = await this.prisma.match.findUnique({ where: { id }, include: { category: true, season: true, facility: true, squad: { include: { player: { include: { person: true } } }, orderBy: [{ isStarter: 'desc' }, { shirtNumber: 'asc' }] }, events: { include: { player: { include: { person: true } } }, orderBy: { minute: 'asc' } }, playerStats: true } });
+    const target = await this.prisma.match.findUnique({ where: { id }, select: { categoryId: true } });
+    if (!target) throw new NotFoundException('Match not found');
+    this.authorization.assertCategory(user, target.categoryId, 'matches.view');
+    const canManage = (user.permissions.includes('matches.selectSquad') && this.authorization.canAccessCategory(user, target.categoryId, 'matches.selectSquad')) || (user.permissions.includes('matches.create') && this.authorization.canAccessCategory(user, target.categoryId, 'matches.create'));
+    const relatedPlayerIds = [...new Set([...(user.playerId ? [user.playerId] : []), ...user.guardianPlayerIds])];
+    const guardianRestricted = user.roles.includes('PARENT') && !canManage;
+    const personSelect = { id: true, fullNameAr: true, firstName: true, lastName: true, photoUrl: true };
+    const match = await this.prisma.match.findUnique({ where: { id }, include: {
+      category: true, season: true, facility: true,
+      squad: { where: guardianRestricted ? { playerId: { in: user.guardianPlayerIds } } : {}, include: { player: { include: { person: { select: personSelect } } } }, orderBy: [{ isStarter: 'desc' }, { shirtNumber: 'asc' }] },
+      events: { where: guardianRestricted ? { OR: [{ playerId: null }, { playerId: { in: user.guardianPlayerIds } }] } : {}, include: { player: { include: { person: { select: personSelect } } } }, orderBy: { minute: 'asc' } },
+      playerStats: { where: canManage ? {} : { playerId: { in: relatedPlayerIds } } },
+    } });
     if (!match) throw new NotFoundException('Match not found');
-    this.authorization.assertCategory(user, match.categoryId);
-    return match;
+    return canManage ? match : { ...match, tacticalNotes: null, coachNotes: null };
   }
 
   async create(dto: CreateMatchDto, user: SessionUser) {
-    this.authorization.assertCategory(user, dto.categoryId);
+    this.authorization.assertCategory(user, dto.categoryId, 'matches.create');
     const category = await this.prisma.category.findFirst({ where: { id: dto.categoryId, seasonId: dto.seasonId, active: true } });
     if (!category) throw new BadRequestException('Category does not belong to the selected season');
     const match = await this.prisma.match.create({ data: { ...dto, kickoffAt: new Date(dto.kickoffAt), meetingAt: dto.meetingAt ? new Date(dto.meetingAt) : null }, include: { category: true, facility: true } });
@@ -37,7 +47,7 @@ export class MatchesService {
   async updateSquad(id: string, dto: UpdateSquadDto, user: SessionUser) {
     const match = await this.prisma.match.findUnique({ where: { id } });
     if (!match) throw new NotFoundException('Match not found');
-    this.authorization.assertCategory(user, match.categoryId);
+    this.authorization.assertCategory(user, match.categoryId, 'matches.selectSquad');
     const uniqueIds = new Set(dto.players.map((player) => player.playerId));
     if (uniqueIds.size !== dto.players.length) throw new BadRequestException('A player can appear only once in the squad');
     const eligible = new Set((await this.prisma.playerSeason.findMany({ where: { seasonId: match.seasonId, categoryId: match.categoryId, playerId: { in: [...uniqueIds] } }, select: { playerId: true } })).map((item) => item.playerId));
@@ -56,8 +66,9 @@ export class MatchesService {
   async addEvent(id: string, dto: CreateMatchEventDto, user: SessionUser) {
     const match = await this.prisma.match.findUnique({ where: { id }, include: { squad: true } });
     if (!match) throw new NotFoundException('Match not found');
-    this.authorization.assertCategory(user, match.categoryId);
-    if (dto.playerId && !match.squad.some((item) => item.playerId === dto.playerId)) throw new BadRequestException('Event player is not in the match squad');
+    this.authorization.assertCategory(user, match.categoryId, 'matches.create');
+    const referencedIds = [dto.playerId, dto.relatedPlayerId].filter((playerId): playerId is string => Boolean(playerId));
+    if (referencedIds.some((playerId) => !match.squad.some((item) => item.playerId === playerId))) throw new BadRequestException('Every event player must be in the match squad');
     const event = await this.prisma.matchEvent.create({ data: { matchId: id, ...dto } });
     await this.prisma.auditLog.create({ data: { userId: user.id, action: 'ADD_EVENT', entity: 'Match', entityId: id, after: event } });
     return event;
@@ -66,14 +77,10 @@ export class MatchesService {
   async updateResult(id: string, dto: UpdateResultDto, user: SessionUser) {
     const before = await this.prisma.match.findUnique({ where: { id } });
     if (!before) throw new NotFoundException('Match not found');
-    this.authorization.assertCategory(user, before.categoryId);
+    this.authorization.assertCategory(user, before.categoryId, 'matches.create');
     const match = await this.prisma.match.update({ where: { id }, data: dto });
     await this.prisma.auditLog.create({ data: { userId: user.id, action: 'UPDATE_RESULT', entity: 'Match', entityId: id, before, after: match } });
     return match;
   }
 
-  private scopedCategoryIds(user: SessionUser, categoryId?: string) {
-    if (categoryId) return [categoryId];
-    return user.roles.some((role) => ['SUPER_ADMIN','PRESIDENT','TECHNICAL_DIRECTOR'].includes(role)) ? undefined : user.categoryIds;
-  }
 }

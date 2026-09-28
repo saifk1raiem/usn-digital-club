@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\"",
+    "test": "nest build && node --test dist/src/auth/authorization.service.spec.js dist/src/auth/permissions.guard.spec.js",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate dev --name phase_1_foundation",

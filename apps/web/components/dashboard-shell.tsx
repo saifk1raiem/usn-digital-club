@@ -1,6 +1,6 @@
 'use client';
-import { useQuery } from '@tanstack/react-query';
-import { Bell, Boxes, ChevronLeft, ClipboardList, FileText, Home, LogOut, Megaphone, Menu, Shield, Shirt, Stethoscope, Trophy, UserRoundCog, Users, Warehouse, X } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bell, Boxes, ChevronLeft, ClipboardList, FileText, Home, LogOut, Megaphone, Menu, ScanSearch, Settings, Shield, Shirt, Stethoscope, Trophy, UserRoundCheck, UserRoundCog, Users, Warehouse, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
@@ -17,19 +17,22 @@ const items: Array<{ key: string; href?: string; icon: typeof Home; permission: 
   { key: 'matches', href: '/matches', icon: Trophy, permission: 'matches.view' },
   { key: 'announcements', href: '/announcements', icon: Megaphone, permission: 'announcements.view' },
   { key: 'notifications', href: '/notifications', icon: Bell, permission: 'notifications.view' },
-  { key: 'performance', icon: Shield, permission: 'performance.view' },
-  { key: 'medical', icon: Stethoscope, permission: 'medical.viewAvailability' },
+  { key: 'performance', href: '/performance', icon: Shield, permission: 'performance.view' },
+  { key: 'medical', href: '/medical', icon: Stethoscope, permission: 'medical.viewAvailability' },
+  { key: 'trials', href: '/trials', icon: ScanSearch, permission: 'trials.view' },
+  { key: 'guardians', href: '/guardians', icon: UserRoundCheck, permission: 'guardians.view' },
   { key: 'equipment', icon: Warehouse, permission: 'equipment.manage' },
   { key: 'kits', icon: Shirt, permission: 'equipment.manage' },
   { key: 'documents', icon: FileText, permission: 'contracts.view' },
+  { key: 'settings', href: '/users', icon: Settings, permission: 'users.manage' },
 ];
 
 export function DashboardShell({ locale, children }: PropsWithChildren<{ locale: WebLocale }>) {
-  const t = getMessages(locale); const pathname = usePathname(); const router = useRouter(); const [open, setOpen] = useState(false);
+  const t = getMessages(locale); const pathname = usePathname(); const router = useRouter(); const cache = useQueryClient(); const [open, setOpen] = useState(false);
   const session = useQuery({ queryKey: ['session'], queryFn: () => api<{ data: SessionUser }>('/auth/me'), retry: false });
   useEffect(() => { if (session.isError) router.replace(`/${locale}/login`); }, [session.isError, locale, router]);
   const visible = useMemo(() => items.filter((item) => session.data?.data.permissions.includes(item.permission)), [session.data]);
-  const signOut = () => { localStorage.removeItem('usn_access_token'); localStorage.removeItem('usn_refresh_token'); router.replace(`/${locale}/login`); };
+  const signOut = () => { localStorage.removeItem('usn_access_token'); localStorage.removeItem('usn_refresh_token'); cache.clear(); router.replace(`/${locale}/login`); };
   return <div className="app-shell">
     <button className="mobile-menu" onClick={() => setOpen(true)} aria-label="Menu"><Menu /></button>
     {open && <button className="sidebar-scrim" onClick={() => setOpen(false)} aria-label="Close menu" />}

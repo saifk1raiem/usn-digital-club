@@ -12,17 +12,18 @@ export class AnnouncementsService {
   async list(user: SessionUser) {
     const now = new Date();
     const staffRole = user.roles.some((role) => !['PLAYER','PARENT','VIEWER'].includes(role));
+    const visibleCategoryIds = this.authorization.scopedCategoryIds(user, 'announcements.view');
     const visibility: Prisma.AnnouncementWhereInput[] = [
+      { authorId: user.id },
       { audience: 'CLUB' },
-      ...(user.categoryIds.length ? [{ audience: 'CATEGORY' as const, categoryId: { in: user.categoryIds } }] : []),
+      ...(visibleCategoryIds?.length ? [{ audience: 'CATEGORY' as const, categoryId: { in: visibleCategoryIds } }] : visibleCategoryIds === undefined ? [{ audience: 'CATEGORY' as const }] : []),
       ...(staffRole ? [{ audience: 'STAFF' as const }] : []),
       ...(user.roles.includes('PLAYER') ? [{ audience: 'PLAYERS' as const }] : []),
       ...(user.roles.includes('PARENT') ? [{ audience: 'PARENTS' as const }] : []),
       { audience: 'USERS', recipients: { some: { userId: user.id } } },
     ];
-    const global = user.roles.some((role) => ['SUPER_ADMIN','PRESIDENT','MANAGEMENT','TECHNICAL_DIRECTOR'].includes(role));
     return this.prisma.announcement.findMany({
-      where: { publishAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }], ...(!global ? { AND: [{ OR: visibility }] } : {}) },
+      where: { publishAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }], AND: [{ OR: visibility }] },
       include: { category: true, author: { select: { id: true, person: { select: { fullNameAr: true, firstName: true, lastName: true } } } }, reads: { where: { userId: user.id } }, _count: { select: { reads: true, recipients: true } } },
       orderBy: [{ priority: 'desc' }, { publishAt: 'desc' }],
     });
@@ -31,7 +32,10 @@ export class AnnouncementsService {
   async create(dto: CreateAnnouncementDto, user: SessionUser) {
     if (dto.audience === 'CATEGORY' && !dto.categoryId) throw new BadRequestException('Category audience requires a category');
     if (dto.audience === 'USERS' && !dto.userIds?.length) throw new BadRequestException('Specific-user audience requires recipients');
-    if (dto.categoryId) this.authorization.assertCategory(user, dto.categoryId);
+    if (dto.audience !== 'CATEGORY' && dto.categoryId) throw new BadRequestException('Only category announcements may include a category');
+    if (dto.audience !== 'USERS' && dto.userIds?.length) throw new BadRequestException('Only specific-user announcements may include recipients');
+    if (dto.audience === 'CATEGORY') this.authorization.assertCategory(user, dto.categoryId!, 'announcements.publish');
+    else this.authorization.assertGlobalScope(user, 'announcements.publish');
     const publishAt = dto.publishAt ? new Date(dto.publishAt) : new Date();
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
     if (expiresAt && expiresAt <= publishAt) throw new BadRequestException('Expiry must be after publication');
@@ -48,10 +52,9 @@ export class AnnouncementsService {
   async markRead(id: string, user: SessionUser, acknowledge: boolean) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id }, include: { recipients: { where: { userId: user.id } } } });
     if (!announcement) throw new NotFoundException('Announcement not found');
-    const global = user.roles.some((role) => ['SUPER_ADMIN','PRESIDENT','MANAGEMENT','TECHNICAL_DIRECTOR'].includes(role));
     const staff = user.roles.some((role) => !['PLAYER','PARENT','VIEWER'].includes(role));
-    const allowed = global || announcement.authorId === user.id || announcement.audience === 'CLUB'
-      || (announcement.audience === 'CATEGORY' && Boolean(announcement.categoryId && user.categoryIds.includes(announcement.categoryId)))
+    const allowed = announcement.authorId === user.id || announcement.audience === 'CLUB'
+      || (announcement.audience === 'CATEGORY' && Boolean(announcement.categoryId && this.authorization.canAccessCategory(user, announcement.categoryId, 'announcements.view')))
       || (announcement.audience === 'STAFF' && staff) || (announcement.audience === 'PLAYERS' && user.roles.includes('PLAYER'))
       || (announcement.audience === 'PARENTS' && user.roles.includes('PARENT')) || (announcement.audience === 'USERS' && announcement.recipients.length > 0);
     if (!allowed || announcement.publishAt > new Date() || (announcement.expiresAt && announcement.expiresAt <= new Date())) throw new ForbiddenException();

@@ -13,9 +13,15 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() }, include: this.userIncludes() });
+    const user = await this.prisma.user.findFirst({ where: { email: { equals: dto.email.trim(), mode: 'insensitive' } }, include: this.userIncludes() });
     if (!user || user.status !== 'ACTIVE' || !(await compare(dto.password, user.passwordHash))) throw new UnauthorizedException('Invalid credentials');
     return this.issueTokens(this.toSession(user));
+  }
+
+  async sessionForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: this.userIncludes() });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User account is not active');
+    return this.toSession(user);
   }
 
   async refresh(rawToken: string) {
@@ -39,7 +45,7 @@ export class AuthService {
   private async issueTokens(user: SessionUser) {
     const refreshId = randomUUID();
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAsync(user, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: this.config.get('JWT_ACCESS_TTL', '15m') }),
+      this.jwt.signAsync({ sub: user.id, type: 'access' }, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: this.config.get('JWT_ACCESS_TTL', '15m') }),
       this.jwt.signAsync({ sub: user.id, type: 'refresh', jti: refreshId }, { secret: this.refreshSecret(), expiresIn: this.config.get('JWT_REFRESH_TTL', '30d') }),
     ]);
     const decoded = this.jwt.decode(refreshToken) as { exp: number };
@@ -48,26 +54,36 @@ export class AuthService {
   }
 
   private userIncludes(): Prisma.UserInclude {
+    const now = new Date();
     const activeSeason = { where: { season: { isCurrent: true }, leftAt: null } };
     return {
       person: { include: {
-        staffProfile: { include: { assignments: { where: { OR: [{ endDate: null }, { endDate: { gt: new Date() } }] } } } },
+        staffProfile: { include: { assignments: { where: { startDate: { lte: now }, OR: [{ endDate: null }, { endDate: { gt: now } }], season: { isCurrent: true } } } } },
         player: { include: { seasons: activeSeason } },
         guardian: { include: { players: { include: { player: { include: { seasons: activeSeason } } } } } },
       } },
-      roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
+      roles: { include: { scopes: { where: { category: { active: true, season: { isCurrent: true } } } }, role: { include: { permissions: { include: { permission: true } } } } } },
     };
   }
 
   private toSession(user: Awaited<ReturnType<PrismaService['user']['findUniqueOrThrow']>> & any): SessionUser {
     const roles = user.roles.map((item: any) => item.role.key) as SystemRole[];
     const permissions = [...new Set(user.roles.flatMap((item: any) => item.role.permissions.map((entry: any) => entry.permission.key)))] as PermissionKey[];
-    const categoryIds = [...new Set([
-      ...(user.person.staffProfile?.assignments.map((assignment: any) => assignment.categoryId) ?? []),
-      ...(user.person.player?.seasons.map((season: any) => season.categoryId) ?? []),
-      ...(user.person.guardian?.players.flatMap((link: any) => link.player.seasons.map((season: any) => season.categoryId)) ?? []),
-    ].filter(Boolean))] as string[];
-    return { id: user.id, email: user.email, displayName: user.person.fullNameAr, roles, permissions, categoryIds, locale: user.locale === 'fr' ? 'fr' : 'ar' };
+    const staffCategoryIds = [...new Set(user.person.staffProfile?.assignments.map((assignment: any) => assignment.categoryId).filter(Boolean) ?? [])] as string[];
+    const playerCategoryIds = [...new Set(user.person.player?.seasons.map((season: any) => season.categoryId) ?? [])] as string[];
+    const guardianCategoryIds = [...new Set(user.person.guardian?.players.flatMap((link: any) => link.player.seasons.map((season: any) => season.categoryId)) ?? [])] as string[];
+    const permissionScopes: Partial<Record<PermissionKey, string[] | null>> = {};
+    for (const assignment of user.roles as any[]) {
+      const roleKey = assignment.role.key as SystemRole;
+      const explicitScopes = assignment.scopes.map((scope: any) => scope.categoryId) as string[];
+      const membershipScopes = roleKey === 'PLAYER' ? playerCategoryIds : roleKey === 'PARENT' ? guardianCategoryIds : [];
+      for (const rolePermission of assignment.role.permissions) {
+        const key = rolePermission.permission.key as PermissionKey;
+        if (assignment.isGlobal || permissionScopes[key] === null) permissionScopes[key] = null;
+        else permissionScopes[key] = [...new Set([...(permissionScopes[key] ?? []), ...(explicitScopes.length ? explicitScopes : membershipScopes)])];
+      }
+    }
+    return { id: user.id, personId: user.personId, playerId: user.person.player?.id, guardianPlayerIds: user.person.guardian?.players.map((link: any) => link.playerId) ?? [], email: user.email, displayName: user.person.fullNameAr, roles, permissions, categoryIds: staffCategoryIds, permissionScopes, locale: user.locale === 'fr' ? 'fr' : 'ar' };
   }
 
   private refreshSecret() { return this.config.getOrThrow<string>('JWT_REFRESH_SECRET'); }

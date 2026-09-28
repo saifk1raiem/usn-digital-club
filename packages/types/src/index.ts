@@ -9,10 +9,11 @@ export const systemRoles = [
 export type SystemRole = (typeof systemRoles)[number];
 
 export const permissions = [
-  'dashboard.view', 'players.view', 'players.create', 'players.edit', 'staff.view',
+  'dashboard.view', 'players.view', 'players.create', 'players.edit', 'team.view', 'staff.view',
   'staff.manage', 'training.view', 'training.create', 'training.manageAttendance',
   'matches.view', 'matches.create', 'matches.selectSquad', 'medical.viewAvailability',
   'medical.viewDetails', 'medical.edit', 'performance.view', 'performance.edit',
+  'guardians.view', 'guardians.manage', 'trials.view', 'trials.manage',
   'contracts.view', 'contracts.manage', 'equipment.manage', 'categories.manage',
   'seasons.manage', 'users.manage', 'news.publish', 'announcements.view',
   'announcements.publish', 'notifications.view',
@@ -21,11 +22,15 @@ export type PermissionKey = (typeof permissions)[number];
 
 export interface SessionUser {
   id: string;
+  personId: string;
+  playerId?: string;
+  guardianPlayerIds: string[];
   email: string;
   displayName: string;
   roles: SystemRole[];
   permissions: PermissionKey[];
   categoryIds: string[];
+  permissionScopes: Partial<Record<PermissionKey, string[] | null>>;
   locale: Locale;
 }
 

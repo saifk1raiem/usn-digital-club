@@ -12,15 +12,19 @@ import { FacilitiesModule } from './facilities/facilities.module';
 import { HealthController } from './health.controller';
 import { PlayersModule } from './players/players.module';
 import { MatchesModule } from './matches/matches.module';
+import { GuardiansModule } from './guardians/guardians.module';
+import { MedicalModule } from './medical/medical.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PerformanceModule } from './performance/performance.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { StaffModule } from './staff/staff.module';
 import { TrainingsModule } from './trainings/trainings.module';
+import { TrialsModule } from './trials/trials.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), PrismaModule, AuthModule, UsersModule, SeasonsModule, CategoriesModule, StaffModule, PlayersModule, TrainingsModule, MatchesModule, AnnouncementsModule, NotificationsModule, FacilitiesModule, DashboardModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), PrismaModule, AuthModule, UsersModule, SeasonsModule, CategoriesModule, StaffModule, PlayersModule, TrainingsModule, MatchesModule, MedicalModule, PerformanceModule, GuardiansModule, TrialsModule, AnnouncementsModule, NotificationsModule, FacilitiesModule, DashboardModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
